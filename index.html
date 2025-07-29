@@ -199,7 +199,31 @@
             margin-right: auto; /* For AI messages to align left */
             max-width: 90%; /* Limit width to make it readable */
         }
+        
+        /* NEW: Prompt Refinement Modal styles */
+        #promptRefinementModalContent {
+            max-height: 90vh; /* Limit height to fit screen */
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+        }
+        #promptRefinementEditorContainer {
+            min-height: 300px;
+            height: 60vh; /* Monaco in modal */
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
 
+        /* Highlight effect for generateCodeBtn */
+        .highlight-generate-btn {
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -428,7 +452,7 @@
         <span id="messageContent"></span>
     </div>
 
-    <!-- Modals (Add App, Edit App, Preview, Deleted Versions, Diff, AI Chat History) -->
+    <!-- Modals (Add App, Edit App, Preview, Deleted Versions, Diff, AI Chat History, Prompt Refinement) -->
     <!-- Add New App Modal -->
     <div id="addNewAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
@@ -531,6 +555,32 @@
         </div>
     </div>
 
+    <!-- NEW: Prompt Refinement Modal -->
+    <div id="promptRefinementModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div id="promptRefinementModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 id="promptRefinementModalTitle" class="text-xl font-semibold text-gray-800"></h3>
+                <button id="closePromptRefinementModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="flex-grow p-4 flex flex-col">
+                <label for="promptRefinementContent" class="block text-gray-700 text-base font-bold mb-2">Prompt gửi đến AI (có thể chỉnh sửa):</label>
+                <div id="promptRefinementEditorContainer" class="flex-grow"></div>
+            </div>
+            <div class="p-4 border-t border-gray-200 flex justify-end gap-3">
+                <button id="cancelRefinedPromptBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Hủy</button>
+                <button id="sendRefinedChatBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center gap-2">
+                    <span id="sendRefinedChatButtonText">Gửi Thảo luận</span>
+                    <div id="sendRefinedChatSpinner" class="spinner hidden w-4 h-4"></div>
+                </button>
+                <button id="sendRefinedCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center gap-2">
+                    <span id="sendRefinedCodeButtonText">Tạo mã</span>
+                    <div id="sendRefinedCodeSpinner" class="spinner hidden w-4 h-4"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
@@ -543,14 +593,15 @@
         import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-ai.js";
 
         // Firebase Config
-        const firebaseConfig = {
-  apiKey: "AIzaSyAjMnVZRLJZq246T9Ezj-ONH1W-6oK0IJ8",
-  authDomain: "aicode1-e086e.firebaseapp.com",
-  projectId: "aicode1-e086e",
-  storageBucket: "aicode1-e086e.firebasestorage.app",
-  messagingSenderId: "348803301752",
-  appId: "1:348803301752:web:7c76ce248876f5dbbcc88d"
-};
+ const firebaseConfig = {
+    apiKey: "AIzaSyAjMnVZRLJZq246T9Ezj-ONH1W-6oK0IJ8",
+    authDomain: "aicode1-e086e.firebaseapp.com",
+    projectId: "aicode1-e086e",
+    storageBucket: "aicode1-e086e.firebasestorage.app",
+    messagingSenderId: "348803301752",
+    appId: "1:348803301752:web:7c76ce248876f5dbbcc88d"
+  };
+
 
         // Firebase Initialization
         const app = initializeApp(firebaseConfig);
@@ -579,7 +630,8 @@
         
         let monacoEditor = null;     // For single editor instance
         let monacoDiffEditor = null; // For diff editor instance
-        let currentEditorType = 'single'; // 'single', 'diff', or 'refine'
+        let monacoPromptEditor = null; // NEW: For prompt refinement modal
+        let currentEditorType = 'single'; // 'single', 'diff', 'refine', or 'prompt'
 
         let isRefineModeActive = false; // NEW: Track if refine mode is active
         let currentRefinementSelection = null; // NEW: Store the current selection for refinement
@@ -677,12 +729,26 @@
             attachedFileInfo: document.getElementById('attachedFileInfo'),
             attachedFileNameDisplay: document.getElementById('attachedFileNameDisplay'),
             removeAttachedFileBtn: document.getElementById('removeAttachedFileBtn'),
+
+            // NEW: Prompt Refinement Modal elements
+            promptRefinementModal: document.getElementById('promptRefinementModal'),
+            promptRefinementModalTitle: document.getElementById('promptRefinementModalTitle'),
+            promptRefinementEditorContainer: document.getElementById('promptRefinementEditorContainer'),
+            closePromptRefinementModalBtn: document.getElementById('closePromptRefinementModalBtn'),
+            sendRefinedChatBtn: document.getElementById('sendRefinedChatBtn'),
+            sendRefinedChatButtonText: document.getElementById('sendRefinedChatButtonText'),
+            sendRefinedChatSpinner: document.getElementById('sendRefinedChatSpinner'),
+            sendRefinedCodeBtn: document.getElementById('sendRefinedCodeBtn'),
+            sendRefinedCodeButtonText: document.getElementById('sendRefinedCodeButtonText'),
+            sendRefinedCodeSpinner: document.getElementById('sendRefinedCodeSpinner'),
+            cancelRefinedPromptBtn: document.getElementById('cancelRefinedPromptBtn'),
         };
 
         const aiPromptSuggestions = [
             "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:",
             "Chúng ta sẽ thảo luận về:",
-            "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn."
+            "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn.",
+            "Tạo ngay mã nguồn cho trang chủ đơn giản với header, main content và footer." // Added for quick code generation
         ];
 
         // --- Monaco Editor Management Functions ---
@@ -707,6 +773,10 @@
                 monacoDiffEditor.dispose();
                 monacoDiffEditor = null;
             }
+            if (monacoPromptEditor) { // NEW: Dispose prompt editor
+                monacoPromptEditor.dispose();
+                monacoPromptEditor = null;
+            }
             // Also dispose selection listener if it exists
             if (monacoSelectionDisposable) {
                 monacoSelectionDisposable.dispose();
@@ -727,6 +797,7 @@
                 wordWrap: 'on',
                 minimap: { enabled: true },
                 scrollBeyondLastLine: false,
+                readOnly: false // Main editor is writable
             });
             // Ensure refine mode is off and its listener is disabled when switching to single editor
             if (isRefineModeActive) {
@@ -762,9 +833,30 @@
             }
         }
 
+        // NEW: Function to create a prompt editor (Monaco instance in modal)
+        function createPromptEditor(value = '', language = 'markdown') {
+            if (monacoPromptEditor) {
+                monacoPromptEditor.setValue(value);
+                monaco.editor.setModelLanguage(monacoPromptEditor.getModel(), language);
+            } else {
+                currentEditorType = 'prompt'; // Indicate that a prompt editor is active
+                monacoPromptEditor = monaco.editor.create(elements.promptRefinementEditorContainer, {
+                    value: value,
+                    language: language, // Typically markdown or plaintext for prompts
+                    theme: 'vs-light',
+                    automaticLayout: true,
+                    fontSize: 13,
+                    wordWrap: 'on',
+                    minimap: { enabled: false }, // No minimap for prompt editor
+                    scrollBeyondLastLine: false,
+                });
+            }
+            monacoPromptEditor.focus();
+        }
+
         // Initial Monaco Editor setup on app load/login
         function initializeEditor() {
-            if (monacoEditor || monacoDiffEditor) return; // Already initialized
+            if (monacoEditor || monacoDiffEditor || monacoPromptEditor) return; // Already initialized
             require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
             require(['vs/editor/editor.main'], function() {
                 createSingleEditor(); // Start with a single, empty editor
@@ -960,6 +1052,7 @@
             currentVersionFiles.clear();
             lastAiExplanationMarkdown = ''; // Reset AI explanation state
             removeAttachedFile(); // Clear attached file when application changes
+            elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight when app changes
 
             elements.currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
@@ -1019,6 +1112,7 @@
             createSingleEditor();
             elements.fileNameInput.value = ''; // Clear filename input
             removeAttachedFile(); // Clear attached file when version changes
+            elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight when version changes
 
             // NEW: Ensure refine mode is turned off
             if (isRefineModeActive) {
@@ -1047,16 +1141,15 @@
                 elements.aiChatHistoryModalContent.innerHTML = ''; // Clear modal chat history display
                 const loadedChatHistory = versionData?.chatHistory;
                 if (loadedChatHistory && loadedChatHistory.length > 0) {
-                    chat = aiModel.startChat({ history: loadedChatHistory });
-                    loadedChatHistory.forEach(msg => {
-                        // Only display if it's a user or AI message and has text content
-                        if ((msg.role === 'user' || msg.role === 'model') && msg.parts && msg.parts.length > 0 && msg.parts[0].text) {
-                            // Do not display the internal system prompt in the chat history box
-                            if (msg.role === 'user' && msg.parts[0].text === initialSystemPrompt) {
-                                return;
-                            }
-                            addMessageToChatHistory(msg.role, msg.parts[0].text);
-                        }
+                    // Only display user and model messages with text content, skip system prompt
+                    const displayHistory = loadedChatHistory.filter(msg => 
+                        (msg.role === 'user' || msg.role === 'model') && 
+                        msg.parts && msg.parts.length > 0 && msg.parts[0].text &&
+                        msg.parts[0].text !== initialSystemPrompt
+                    );
+                    chat = aiModel.startChat({ history: loadedChatHistory }); // Retain full history for AI
+                    displayHistory.forEach(msg => {
+                        addMessageToChatHistory(msg.role, msg.parts[0].text);
                     });
                 } else {
                     chat = null; // Ensure chat is null if no history is loaded
@@ -1108,6 +1201,7 @@
                 
                 elements.aiChatInput.value = ''; // Keep clearing only the input box
                 removeAttachedFile(); // Clear attached file when loading a new file into editor
+                elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight when new file loaded
 
                 // Check if current version has a parent to enable diff button
                 updateDiffButtonVisibility();
@@ -1296,7 +1390,7 @@
             }
         };
 
-        // NEW: Send Refine Feedback
+        // NEW: Send Refine Feedback (This still works the same as before, no changes needed for prompt refinement flow)
         const sendRefineFeedback = async () => {
             if (!aiModel || !monacoEditor || !currentRefinementSelection || !currentAppId) {
                 return showMessage("Không có mã được chọn hoặc AI/trình soạn thảo chưa sẵn sàng.", 3000);
@@ -1356,7 +1450,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 addMessageToChatHistory('user', `Yêu cầu tinh chỉnh mã: "${userFeedbackText}" (đoạn mã: ${selectedCode.substring(0, 50)}...)`);
 
                 const result = await chat.sendMessage(codeGenPrompt);
-                const fullResponseText = result.response.text();
+                let fullResponseText = result.response.text();
                 
                 const separator = '---CODE---';
                 let explanation = "AI không cung cấp giải thích.";
@@ -1417,6 +1511,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         }
 
         // --- AI Logic ---
+        const READY_FOR_CODE_MARKER = '[READY_FOR_CODE]'; // Marker for AI to signal readiness for code generation
         const initialSystemPrompt = `Bạn là một trợ lý lập trình chuyên sâu về HTML, CSS, và JavaScript.
 **Mục tiêu của bạn:**
 *   **Khi tôi nhấn 'Gửi tin nhắn' (Send Message)**: Bạn sẽ tham gia vào cuộc trò chuyện, thảo luận, phân tích, giải thích, đưa ra lời khuyên hoặc gợi ý về mã nguồn hiện tại trong trình soạn thảo. **Bạn KHÔNG được tạo ra mã nguồn hoặc sử dụng định dạng '---CODE---' trong các phản hồi này.**
@@ -1424,9 +1519,12 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
     1.  Giải thích ngắn gọn các thay đổi bạn đã thực hiện.
     2.  Thêm dòng phân cách '---CODE---'.
     3.  Chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).
-Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện tại trong trình soạn thảo. Tôi sẽ luôn cung cấp mã nguồn hiện tại cho bạn trong mỗi tin nhắn của tôi.`;
+Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện tại trong trình soạn thảo. Tôi sẽ luôn cung cấp mã nguồn hiện tại cho bạn trong mỗi tin nhắn của tôi.
+
+**Gợi ý tạo mã:** Khi bạn cảm thấy cuộc thảo luận đã đủ rõ ràng và bạn có thể tạo mã theo yêu cầu, hãy kết thúc phản hồi của mình bằng dấu hiệu đặc biệt "${READY_FOR_CODE_MARKER}". Tôi sẽ sử dụng dấu hiệu này để gợi ý cho người dùng rằng đã đến lúc tạo mã.`;
 
 
+        // ORIGINAL `sendChatMessage` - now prepares prompt for modal
         const sendChatMessage = async () => {
             if (!aiModel) return showMessage("Mô hình AI chưa sẵn sàng.");
             if (currentEditorType === 'diff' || isRefineModeActive) {
@@ -1435,55 +1533,39 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
             const userMessage = elements.aiChatInput.value.trim();
             if (!userMessage) return showMessage("Vui lòng nhập tin nhắn.");
 
-            // Get current editor content and file name for context
-            const currentCode = monacoEditor ? monacoEditor.getValue() : "// Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
-            const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
-
-            addMessageToChatHistory('user', userMessage); // Display user's original message
-            elements.aiChatInput.value = ''; // Clear input immediately
-
-            elements.chatButtonText.textContent = 'Đang gửi...';
+            elements.chatButtonText.textContent = 'Đang chuẩn bị...';
             elements.chatButtonSpinner.classList.remove('hidden');
             elements.sendChatMessageBtn.disabled = true;
-
+            elements.generateCodeBtn.disabled = true; // Disable generate during prep
+            
             try {
-                if (!chat) {
-                    // Initialize chat with the system prompt and an initial greeting from AI
-                    const initialHistoryForNewChat = [
-                        { role: "user", parts: [{ text: initialSystemPrompt }] }, // System instruction
-                        { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] } // AI's opening
-                    ];
-                    chat = aiModel.startChat({ history: initialHistoryForNewChat });
-                    // Display only the AI's greeting, not the hidden system prompt
-                    addMessageToChatHistory('ai', initialHistoryForNewChat[1].parts[0].text);
-                }
-
-                // For every user message, provide the *current state* of the code explicitly.
-                // This is crucial for the AI to always have the latest context.
+                // Prepare the full prompt string for display and refinement
+                const currentCode = monacoEditor ? monacoEditor.getValue() : "// Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
+                const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+                
                 let messageForAI = `Tệp hiện tại: ${currentFileName}\nMã nguồn hiện tại:\n\`\`\`\n${currentCode}\n\`\`\`\n`;
 
-                // NEW: Include attached file content if present
                 if (attachedFileContent) {
                     messageForAI += `\n\n[Tệp đính kèm: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
                 }
                 
                 messageForAI += `Tin nhắn của tôi: ${userMessage}`;
-                
-                const result = await chat.sendMessage(messageForAI); // Send the augmented message
-                const aiResponseText = result.response.text();
-                addMessageToChatHistory('ai', aiResponseText);
+
+                // Open the prompt refinement modal
+                await openPromptRefinementModal(messageForAI, 'chat', userMessage);
 
             } catch (error) {
-                console.error("Error sending chat message:", error);
-                showMessage(`Lỗi khi gửi tin nhắn: ${error.message}`, 5000);
+                console.error("Error preparing chat message:", error);
+                showMessage(`Lỗi khi chuẩn bị tin nhắn: ${error.message}`, 5000);
             } finally {
                 elements.chatButtonText.textContent = 'Thảo luận';
                 elements.chatButtonSpinner.classList.add('hidden');
                 elements.sendChatMessageBtn.disabled = false;
-                removeAttachedFile(); // NEW: Clear attached file after sending
+                elements.generateCodeBtn.disabled = false; // Re-enable generate button
             }
         };
 
+        // ORIGINAL `generateCodeFromAI` - now prepares prompt for modal
         const generateCodeFromAI = async () => {
             if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
             
@@ -1491,34 +1573,21 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
                 return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi tạo mã mới.", 5000);
             }
 
-            if (!chat) {
-                // Initialize chat with the system prompt and an initial greeting from AI
-                const initialHistoryForNewChat = [
-                    { role: "user", parts: [{ text: initialSystemPrompt }] }, // System instruction
-                    { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] } // AI's opening
-                ];
-                chat = aiModel.startChat({ history: initialHistoryForNewChat });
-                // Display only the AI's greeting, not the hidden system prompt
-                addMessageToChatHistory('ai', initialHistoryForNewChat[1].parts[0].text);
-            }
-
-            elements.generateCodeButtonText.textContent = 'Đang tạo mã...';
+            elements.generateCodeButtonText.textContent = 'Đang chuẩn bị...';
             elements.generateCodeButtonSpinner.classList.remove('hidden');
             elements.generateCodeBtn.disabled = true;
-            elements.sendChatMessageBtn.disabled = true; // Disable chat button during generation
+            elements.sendChatMessageBtn.disabled = true; // Disable chat during prep
 
             try {
                 const currentCode = monacoEditor.getValue();
                 const selectedStyle = elements.mainStyleSelect.value;
                 const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
 
-
                 let codeGenPrompt = `Dựa trên toàn bộ cuộc trò chuyện của chúng ta và mã nguồn hiện tại trong tệp "${currentFileName}":
 \`\`\`
 ${currentCode}
 \`\`\`
 `;
-                // NEW: Include attached file content if present
                 if (attachedFileContent) {
                     codeGenPrompt += `\n\n[Tệp đính kèm để tham khảo: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
                 }
@@ -1535,54 +1604,158 @@ Hãy tuân thủ định dạng sau:
 Sau đó, thêm dòng phân cách '---CODE---'.
 Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).`;
                 
-                // Add this generation request to chat history for user's side
-                addMessageToChatHistory('user', "Yêu cầu tạo mã: " + (codeGenPrompt.length > 200 ? codeGenPrompt.substring(0, 200) + "..." : codeGenPrompt));
-
-                const result = await chat.sendMessage(codeGenPrompt); // Send the specific generation prompt
-                const fullResponseText = result.response.text();
-                
-                const separator = '---CODE---';
-                let explanation = "AI không cung cấp giải thích.";
-                let code = fullResponseText;
-
-                if (fullResponseText.includes(separator)) {
-                    const parts = fullResponseText.split(separator);
-                    explanation = parts[0].trim();
-                    code = parts.slice(1).join(separator).trim();
-                } else {
-                    // Fallback if separator is missing: heuristic to guess if it's code or just explanation
-                    if ((fullResponseText.includes('<html') || fullResponseText.includes('{') || fullResponseText.includes('function') || fullResponseText.includes('body {')) && fullResponseText.length > 100) {
-                        code = fullResponseText;
-                        explanation = "AI đã tạo mã nhưng không cung cấp giải thích riêng biệt. Vui lòng xem mã.";
-                    } else {
-                        explanation = fullResponseText;
-                        code = "// AI không tạo mã. Đây là phản hồi dạng văn bản.";
-                    }
-                }
-                
-                // Use marked.js for aiExplanationBox and store the raw markdown
-                elements.aiExplanationBox.innerHTML = marked.parse(explanation); 
-                lastAiExplanationMarkdown = explanation; // Store the raw markdown explanation
-                
-                monacoEditor.setValue(code);
-
-                // Auto-detect language based on common file extensions if filename is available
-                if (elements.fileNameInput.value.trim()) {
-                    monaco.editor.setModelLanguage(monacoEditor.getModel(), getLanguageFromFilename(elements.fileNameInput.value.trim()));
-                }
-
-                showMessage("AI đã cập nhật mã và cung cấp giải thích.");
-                addMessageToChatHistory('ai', "Đã tạo mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
+                // Open the prompt refinement modal for code generation
+                await openPromptRefinementModal(codeGenPrompt, 'generate', "Yêu cầu tạo mã từ cuộc trò chuyện.");
 
             } catch (error) {
-                console.error("Error generating code from AI:", error);
-                showMessage(`Lỗi khi tạo mã: ${error.message}`, 5000);
+                console.error("Error preparing code generation prompt:", error);
+                showMessage(`Lỗi khi chuẩn bị tạo mã: ${error.message}`, 5000);
             } finally {
                 elements.generateCodeButtonText.textContent = 'Tạo mã từ cuộc trò chuyện';
                 elements.generateCodeButtonSpinner.classList.add('hidden');
                 elements.generateCodeBtn.disabled = false;
                 elements.sendChatMessageBtn.disabled = false;
-                removeAttachedFile(); // NEW: Clear attached file after sending
+            }
+        };
+
+        // NEW: Function to open the prompt refinement modal
+        const openPromptRefinementModal = async (initialPromptContent, actionType, userOriginalMessage) => {
+            elements.promptRefinementModal.classList.remove('hidden');
+            elements.aiChatInput.value = ''; // Clear main input after passing to modal
+            removeAttachedFile(); // Clear attached file info
+
+            // Set modal title and button visibility based on actionType
+            if (actionType === 'chat') {
+                elements.promptRefinementModalTitle.textContent = "Tinh chỉnh Prompt (Thảo luận)";
+                elements.sendRefinedChatBtn.classList.remove('hidden');
+                elements.sendRefinedCodeBtn.classList.add('hidden');
+            } else { // 'generate'
+                elements.promptRefinementModalTitle.textContent = "Tinh chỉnh Prompt (Tạo mã)";
+                elements.sendRefinedChatBtn.classList.add('hidden');
+                elements.sendRefinedCodeBtn.classList.remove('hidden');
+            }
+
+            // Create Monaco Editor for the prompt
+            // Using a monospace font and smaller font size for prompt content
+            require(['vs/editor/editor.main'], function() {
+                createPromptEditor(initialPromptContent, 'markdown'); // Use markdown language for prompt editor
+                monacoPromptEditor.layout(); // Ensure it renders correctly
+            });
+            
+            // Set up click handlers for buttons in the modal
+            // Remove previous listeners first to prevent duplicates
+            elements.sendRefinedChatBtn.onclick = null;
+            elements.sendRefinedCodeBtn.onclick = null;
+
+            elements.sendRefinedChatBtn.onclick = () => sendRefinedPromptToAI(monacoPromptEditor.getValue(), 'chat', userOriginalMessage);
+            elements.sendRefinedCodeBtn.onclick = () => sendRefinedPromptToAI(monacoPromptEditor.getValue(), 'generate', userOriginalMessage);
+        };
+
+        // NEW: Function to close the prompt refinement modal
+        const closePromptRefinementModal = () => {
+            elements.promptRefinementModal.classList.add('hidden');
+            if (monacoPromptEditor) {
+                monacoPromptEditor.dispose(); // Dispose editor when modal is closed
+                monacoPromptEditor = null;
+            }
+        };
+
+        // NEW: Function to send the refined prompt to AI
+        const sendRefinedPromptToAI = async (refinedPrompt, actionType, userOriginalMessage) => {
+            if (!aiModel || !refinedPrompt) return showMessage("Prompt rỗng hoặc AI chưa sẵn sàng.");
+
+            // Disable buttons and show spinners in the modal
+            elements.sendRefinedChatBtn.disabled = true;
+            elements.sendRefinedCodeBtn.disabled = true;
+            elements.cancelRefinedPromptBtn.disabled = true;
+            if (monacoPromptEditor) monacoPromptEditor.updateOptions({ readOnly: true });
+
+            if (actionType === 'chat') {
+                elements.sendRefinedChatButtonText.textContent = 'Đang gửi...';
+                elements.sendRefinedChatSpinner.classList.remove('hidden');
+                showMessage("AI đang thảo luận. Vui lòng đợi...", 5000);
+            } else { // 'generate'
+                elements.sendRefinedCodeButtonText.textContent = 'Đang tạo mã...';
+                elements.sendRefinedCodeSpinner.classList.remove('hidden');
+                showMessage("AI đang tạo mã. Vui lòng đợi...", 5000);
+            }
+
+            try {
+                // Always add the user's original message to chat history immediately.
+                // The AI's response will follow.
+                addMessageToChatHistory('user', userOriginalMessage);
+
+                // Initialize chat with the system prompt if not already initialized
+                if (!chat) {
+                    const initialHistoryForNewChat = [
+                        { role: "user", parts: [{ text: initialSystemPrompt }] },
+                        { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] }
+                    ];
+                    chat = aiModel.startChat({ history: initialHistoryForNewChat });
+                    addMessageToChatHistory('ai', initialHistoryForNewChat[1].parts[0].text);
+                }
+
+                const result = await chat.sendMessage(refinedPrompt);
+                let fullResponseText = result.response.text();
+                
+                // Handle AI readiness marker for chat responses
+                if (actionType === 'chat') {
+                    if (fullResponseText.includes(READY_FOR_CODE_MARKER)) {
+                        fullResponseText = fullResponseText.replace(READY_FOR_CODE_MARKER, '').trim();
+                        elements.generateCodeBtn.classList.add('highlight-generate-btn'); // Highlight the generate button
+                        showMessage("AI đã sẵn sàng tạo mã!", 4000);
+                    } else {
+                        elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Ensure it's not highlighted
+                    }
+                    addMessageToChatHistory('ai', fullResponseText);
+                    showMessage("AI đã phản hồi.");
+
+                } else { // actionType === 'generate'
+                    elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight after generation
+                    const separator = '---CODE---';
+                    let explanation = "AI không cung cấp giải thích.";
+                    let code = fullResponseText;
+
+                    if (fullResponseText.includes(separator)) {
+                        const parts = fullResponseText.split(separator);
+                        explanation = parts[0].trim();
+                        code = parts.slice(1).join(separator).trim();
+                    } else {
+                        if ((fullResponseText.includes('<html') || fullResponseText.includes('{') || fullResponseText.includes('function') || fullResponseText.includes('body {')) && fullResponseText.length > 100) {
+                            code = fullResponseText;
+                            explanation = "AI đã tạo mã nhưng không cung cấp giải thích riêng biệt. Vui lòng xem mã.";
+                        } else {
+                            explanation = fullResponseText;
+                            code = "// AI không tạo mã. Đây là phản hồi dạng văn bản.";
+                        }
+                    }
+                    
+                    elements.aiExplanationBox.innerHTML = marked.parse(explanation); 
+                    lastAiExplanationMarkdown = explanation;
+                    
+                    monacoEditor.setValue(code); // Update the main editor
+                    if (elements.fileNameInput.value.trim()) {
+                        monaco.editor.setModelLanguage(monacoEditor.getModel(), getLanguageFromFilename(elements.fileNameInput.value.trim()));
+                    }
+
+                    showMessage("AI đã cập nhật mã và cung cấp giải thích.");
+                    addMessageToChatHistory('ai', "Đã tạo mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
+                }
+
+            } catch (error) {
+                console.error("Error sending refined prompt:", error);
+                showMessage(`Lỗi khi gửi prompt: ${error.message}`, 5000);
+            } finally {
+                // Reset states
+                elements.sendRefinedChatBtn.disabled = false;
+                elements.sendRefinedCodeBtn.disabled = false;
+                elements.cancelRefinedPromptBtn.disabled = false;
+                elements.sendRefinedChatButtonText.textContent = 'Gửi Thảo luận';
+                elements.sendRefinedChatSpinner.classList.add('hidden');
+                elements.sendRefinedCodeButtonText.textContent = 'Tạo mã';
+                elements.sendRefinedCodeSpinner.classList.add('hidden');
+                if (monacoPromptEditor) monacoPromptEditor.updateOptions({ readOnly: false });
+                closePromptRefinementModal(); // Close modal after response
             }
         };
 
@@ -1590,6 +1763,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
             chat = null; // Resets the chat history with the AI model
             elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa. Bắt đầu trò chuyện mới.</p>';
             elements.aiChatHistoryModalContent.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa.</p>'; // Clear modal content too
+            elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight on clear
             showMessage("Đã xóa lịch sử trò chuyện.");
         }
 
@@ -1637,6 +1811,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 lastAiExplanationMarkdown = ''; // Clear the stored AI explanation after saving
                 elements.viewDiffBtn.classList.add('hidden'); // Hide diff button after saving a new version (no parent yet)
                 removeAttachedFile(); // NEW: Clear attached file after saving a version
+                elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight on save
                 // Note: chat object is NOT cleared here, user can continue chat on the newly saved version.
             } catch (error) {
                 console.error("Error saving version:", error);
@@ -1780,6 +1955,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 clearChatHistory(); // Clear chat when current version is soft-deleted
                 elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
                 removeAttachedFile(); // NEW: Clear attached file when current version is soft-deleted
+                elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight on soft delete
                 // NEW: Ensure refine mode is turned off
                 if (isRefineModeActive) {
                     toggleRefineMode();
@@ -1845,8 +2021,8 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         elements.confirmNewAppBtn.addEventListener('click', addNewApplication);
         elements.cancelNewAppBtn.addEventListener('click', hideAddNewAppModal);
         elements.saveVersionBtn.addEventListener('click', saveVersion);
-        elements.sendChatMessageBtn.addEventListener('click', sendChatMessage); 
-        elements.generateCodeBtn.addEventListener('click', generateCodeFromAI);
+        elements.sendChatMessageBtn.addEventListener('click', sendChatMessage); // Now opens prompt refinement modal
+        elements.generateCodeBtn.addEventListener('click', generateCodeFromAI); // Now opens prompt refinement modal
         elements.clearChatBtn.addEventListener('click', clearChatHistory);
         elements.copyBtn.addEventListener('click', copyCode);
         elements.previewBtn.addEventListener('click', showPreview);
@@ -1878,6 +2054,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         // NEW AI Chat History Modal listeners
         elements.expandChatBtn.addEventListener('click', showAiChatHistoryModal);
         elements.closeAiChatHistoryModalBtn.addEventListener('click', closeAiChatHistoryModal);
+
+        // NEW Prompt Refinement Modal listeners
+        elements.closePromptRefinementModalBtn.addEventListener('click', closePromptRefinementModal);
+        elements.cancelRefinedPromptBtn.addEventListener('click', closePromptRefinementModal);
+        // sendRefinedChatBtn and sendRefinedCodeBtn listeners are set dynamically in openPromptRefinementModal
 
         // NEW File Attachment Listeners
         elements.attachFileBtn.addEventListener('click', () => {
