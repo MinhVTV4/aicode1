@@ -1,0 +1,2149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Version Control AI Canvas with Monaco Editor</title>
+    
+    <!-- Google Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- marked.js CDN for Markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+
+    <style>
+        /* CSS tùy chỉnh để giao diện đẹp hơn và theo Material Design */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            color: #424242;
+        }
+        button {
+            transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+            box-shadow: 0 3px 1px -2px rgba(0,0,0,.2), 0 2px 2px 0 rgba(0,0,0,.14), 0 1px 5px 0 rgba(0,0,0,.12);
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 5px -3px rgba(0,0,0,.2), 0 8px 10px 1px rgba(0,0,0,.14), 0 3px 14px 2px rgba(0,0,0,.12);
+        }
+        button:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px -1px rgba(0,0,0,.2), 0 4px 5px 0 rgba(0,0,0,.14), 0 1px 10px 0 rgba(0,0,0,.12);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .list-item {
+            transition: all 0.2s cubic-bezier(.25,.8,.25,1);
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 2px 0 rgba(0,0,0,.14), 0 3px 1px -2px rgba(0,0,0,.12), 0 1px 5px 0 rgba(0,0,0,.2);
+        }
+        .list-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 5px 0 rgba(0,0,0,.14), 0 1px 10px 0 rgba(0,0,0,.12), 0 2px 4px -1px rgba(0,0,0,.2);
+            border-color: #90caf9;
+        }
+        .list-item.selected {
+             background-color: #e3f2fd;
+             border-left: 4px solid #1976d2;
+             border-color: #90caf9;
+             box-shadow: 0 2px 2px 0 rgba(0,0,0,.14), 0 3px 1px -2px rgba(0,0,0,.12), 0 1px 5px 0 rgba(0,0,0,.2);
+        }
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-left-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #previewModal iframe {
+            width: 100%;
+            height: 80vh;
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+        }
+        #previewFrameContainer {
+            transition: max-width 0.3s ease-in-out;
+            max-width: 100%;
+            width: 100%;
+        }
+        #previewFrameContainer.mobile-view {
+            max-width: 375px;
+        }
+        #previewModalContent {
+            transition: max-width 0.3s ease-in-out, width 0.3s ease-in-out;
+        }
+        #previewModalContent.desktop-mode-active {
+            max-width: 90vw;
+            width: 90vw;
+        }
+        /* Monaco Editor Container Style */
+        #monacoEditorContainer {
+            min-height: 400px; /* Tăng chiều cao tối thiểu */
+            height: 50vh; /* Chiều cao linh hoạt */
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            overflow: hidden; /* Cần thiết cho Monaco Editor */
+        }
+        .ai-message {
+            background-color: #e0f2f7; /* Light blue for AI */
+            border-left: 4px solid #0288d1;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            word-wrap: break-word;
+        }
+        .ai-message strong, .ai-message b {
+            font-weight: 700; /* Tailwind font-bold */
+        }
+        .ai-message em, .ai-message i {
+            font-style: italic;
+        }
+        .ai-message pre {
+            background-color: #263238; /* Darker background for code */
+            color: #e0e0e0;
+            padding: 0.75rem;
+            border-radius: 0.375rem; /* rounded-md */
+            overflow-x: auto;
+            margin-top: 0.5rem;
+            font-family: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace; /* Monospace font */
+        }
+        .ai-message code {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace;
+            background-color: #cfd8dc; /* Light grey for inline code */
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .ai-message pre code {
+             background-color: transparent; /* Remove background for code inside pre */
+             padding: 0;
+             border-radius: 0;
+        }
+        .ai-message ul, .ai-message ol {
+            margin-left: 1.25rem; /* pl-5 */
+            padding-left: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .ai-message ul {
+            list-style-type: disc;
+        }
+        .ai-message ol {
+            list-style-type: decimal;
+        }
+        .ai-message li {
+            margin-bottom: 0.25rem;
+        }
+        .ai-message h1, .ai-message h2, .ai-message h3, .ai-message h4, .ai-message h5, .ai-message h6 {
+            font-weight: 600; /* font-semibold */
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .ai-message h1 { font-size: 1.5rem; /* text-2xl */ }
+        .ai-message h2 { font-size: 1.25rem; /* text-xl */ }
+        .ai-message h3 { font-size: 1.125rem; /* text-lg */ }
+        .ai-message p {
+            margin-bottom: 0.5rem;
+        }
+
+
+        .user-message {
+            background-color: #e8eaf6; /* Light indigo for user */
+            border-left: 4px solid #3f51b5;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            word-wrap: break-word;
+            text-align: right; /* User messages align right */
+        }
+        .user-message span {
+            display: block;
+            text-align: left; /* Content remains left-aligned inside */
+        }
+        /* New style for refinement feedback popup */
+        #refineFeedbackPopup {
+            position: fixed;
+            min-width: 300px;
+            max-width: 400px;
+            z-index: 55; /* Higher than other modals */
+            /* Add an initial small size for accurate offsetHeight calculation before positioning */
+            width: auto;
+            height: auto;
+            opacity: 0; /* Initially invisible */
+            pointer-events: none; /* Not clickable when invisible */
+        }
+        #refineFeedbackPopup.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transition: opacity 0.2s ease-out; /* Smooth transition */
+        }
+
+        /* NEW: AI Chat History Modal styles */
+        #aiChatHistoryModalContent {
+            height: 80vh; /* Set a specific height for the scrollable content */
+            background-color: #f8f8f8; /* Light background for chat modal */
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+        }
+        #aiChatHistoryModal .ai-message,
+        #aiChatHistoryModal .user-message {
+            margin-left: auto; /* For user messages to align right */
+            margin-right: auto; /* For AI messages to align left */
+            max-width: 90%; /* Limit width to make it readable */
+        }
+        
+        /* NEW: Prompt Refinement Modal styles */
+        #promptRefinementModalContent {
+            max-height: 90vh; /* Limit height to fit screen */
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+        }
+        #promptRefinementEditorContainer {
+            min-height: 300px;
+            height: 60vh; /* Monaco in modal */
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        /* Highlight effect for generateCodeBtn */
+        .highlight-generate-btn {
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center z-40">
+        <h1 class="text-3xl font-bold">Version Control AI Canvas</h1>
+        <div id="authStatus" class="flex items-center space-x-4">
+            <span id="userEmailDisplay" class="text-lg font-medium hidden"></span>
+            <button id="logoutBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 hidden">
+                Đăng xuất
+            </button>
+        </div>
+    </header>
+
+    <!-- Auth Section -->
+    <div id="authSection" class="flex-grow flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+            <h2 class="text-3xl font-bold mb-6 text-center text-gray-800">Đăng nhập / Đăng ký</h2>
+            <div class="mb-4">
+                <label for="emailInput" class="block text-gray-700 text-base font-bold mb-2">Email:</label>
+                <input type="email" id="emailInput" placeholder="your@example.com" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+            </div>
+            <div class="mb-6">
+                <label for="passwordInput" class="block text-gray-700 text-base font-bold mb-2">Mật khẩu:</label>
+                <input type="password" id="passwordInput" placeholder="********" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button id="loginBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md flex-grow">
+                    Đăng nhập
+                </button>
+                <button id="registerBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-5 rounded-lg shadow-md flex-grow">
+                    Đăng ký
+                </button>
+            </div>
+            <p class="text-red-500 text-sm mt-4 text-center" id="authErrorMsg"></p>
+        </div>
+    </div>
+
+    <!-- Main App Content -->
+    <!-- Cải thiện bố cục đáp ứng: Thêm md:grid-cols-2 và điều chỉnh gap -->
+    <main id="mainAppContent" class="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 lg:gap-8 hidden px-4 py-4">
+        
+        <!-- Left Column: Applications List -->
+        <!-- Điều chỉnh col-span cho màn hình trung bình -->
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 md:col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
+            <button id="addNewAppBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
+                Add New Application
+            </button>
+            <div class="my-4">
+                <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+            </div>
+            <div id="applicationsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
+                <div class="text-gray-500 text-center py-4">Loading applications...</div>
+            </div>
+        </section>
+
+        <!-- Middle Column: Versions List -->
+        <!-- Điều chỉnh col-span cho màn hình trung bình -->
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 md:col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
+            <button id="showDeletedVersionsBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
+                Xem phiên bản đã xóa
+            </button>
+            <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
+                <div class="text-gray-500 text-center py-4">Select an application to see versions.</div>
+            </div>
+        </section>
+
+        <!-- Right Column: AI Canvas -->
+        <!-- Điều chỉnh col-span cho màn hình trung bình -->
+        <section class="bg-white p-8 rounded-xl shadow-xl col-span-1 md:col-span-2 lg:col-span-8 flex flex-col border border-gray-200">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">AI Canvas</h2>
+            
+            <!-- Block 1: Files and Version Info -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 mb-6">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
+                <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border border-gray-300 p-3 rounded-lg bg-gray-50 mb-4">
+                    <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="fileNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên tệp:</label>
+                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="versionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú phiên bản đã chọn:</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="versionNotesInput" placeholder="Chưa chọn phiên bản" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" disabled>
+                            <button id="editVersionNotesBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg shadow-md flex-shrink-0" style="min-width: 80px;">Sửa</button>
+                            <button id="saveEditedVersionNotesBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg shadow-md hidden flex-shrink-0" style="min-width: 80px;">Lưu</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Block 2: Code Editor (Monaco) -->
+            <div class="flex-grow flex flex-col mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <label for="monacoEditorContainer" class="block text-gray-700 text-base font-bold mb-0">Trình soạn thảo (Monaco):</label>
+                    <div class="flex gap-2">
+                        <button id="viewDiffBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm hidden">
+                            Xem Diff
+                        </button>
+                        <button id="toggleRefineModeBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
+                            Tinh chỉnh Code
+                        </button>
+                        <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
+                            Sao chép mã
+                        </button>
+                    </div>
+                </div>
+                <!-- Monaco Editor container -->
+                <div id="monacoEditorContainer" class="rounded-lg shadow-inner"></div>
+            </div>
+
+            <!-- Block 3: AI Explanation -->
+            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-purple-600">
+                <label for="aiExplanationBox" class="block text-gray-700 text-base font-bold mb-2">Giải thích từ AI:</label>
+                <div id="aiExplanationBox" class="w-full min-h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed">
+                    <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>
+                </div>
+            </div>
+
+            <!-- Block 4: Main Style Selection -->
+            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-blue-600">
+                <label for="mainStyleSelect" class="block text-gray-700 text-base font-bold mb-2">Chọn Phong cách Chủ đạo cho AI:</label>
+                <select id="mainStyleSelect" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+                     <option value="">Không có phong cách cụ thể (mặc định)</option>
+                    <option value="Modern Minimalist">Hiện đại Tối giản (Modern Minimalist)</option>
+                    <option value="Clean and Professional">Sạch sẽ và Chuyên nghiệp (Clean and Professional)</option>
+                    <option value="Flat Design">Thiết kế phẳng (Flat Design)</option>
+                    <option value="Material Design">Material Design (Google)</option>
+                    <option value="Fluent Design">Fluent Design (Microsoft)</option>
+                    <option value="Glassmorphism">Glassmorphism (Hiệu ứng kính mờ)</option>
+                    <option value="Neumorphism">Neumorphism (Hiệu ứng nổi khối mềm)</option>
+                    <option value="Brutalism">Brutalism (Thô ráp, ít trang trí)</option>
+                    <option value="Dark Mode Aesthetic">Thẩm mỹ Chế độ Tối (Dark Mode Aesthetic)</option>
+                    <option value="Gradient-focused">Tập trung Gradient</option>
+                    <option value="Playful and Illustrative">Vui tươi và minh họa</option>
+                    <option value="Retro/Vintage Modern">Retro/Vintage Hiện đại</option>
+                    <option value="Skeuomorphic">Skeuomorphic (Mô phỏng vật lý)</option>
+                    <option value="Futuristic Tech">Công nghệ Tương lai</option>
+                </select>
+            </div>
+            
+            <!-- Block 5: AI Chat and Code Generation -->
+            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Trò chuyện với AI:</h3>
+                <!-- Thay đổi chiều cao cố định thành chiều cao tối đa linh hoạt -->
+                <div id="aiChatHistoryBox" class="w-full max-h-96 p-3 bg-gray-50 border border-gray-300 rounded-lg overflow-y-auto mb-4 text-sm leading-relaxed">
+                    <p class="text-gray-500 text-center">Bắt đầu trò chuyện để trao đổi về mã của bạn.</p>
+                </div>
+
+                <!-- NEW: Expand Chat Button -->
+                <button id="expandChatBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-md mb-4 w-full text-sm">
+                    Mở rộng trò chuyện
+                </button>
+
+                <label for="aiChatInput" class="block text-gray-700 text-base font-bold mb-2">Nhập tin nhắn cho AI:</label>
+                 <textarea id="aiChatInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Hãy thảo luận về cấu trúc của trang chủ'"></textarea>
+                 
+                <!-- NEW: File Attachment Section -->
+                <div class="mt-2 mb-4 flex items-center gap-2">
+                    <button id="attachFileBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd" />
+                        </svg>
+                        Đính kèm tệp
+                    </button>
+                    <input type="file" id="fileAttachmentInput" class="hidden" accept=".html,.css,.js,.txt,.json,.md">
+                    <span id="attachedFileInfo" class="hidden bg-blue-50 text-blue-800 text-xs py-1 px-2 rounded-full flex items-center gap-1">
+                        <span id="attachedFileNameDisplay"></span>
+                        <button id="removeAttachedFileBtn" class="text-blue-600 hover:text-blue-900 text-sm font-bold ml-1 -my-1 -mr-1 px-1 rounded-full">&times;</button>
+                    </span>
+                </div>
+                <!-- END NEW: File Attachment Section -->
+
+                 <div class="mt-4">
+                     <div class="flex items-center gap-2 mb-2">
+                        <label class="block text-gray-700 text-sm font-bold">Gợi ý câu lệnh AI:</label>
+                        <button id="toggleAiSuggestionsBtn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded-full">Ẩn</button>
+                     </div>
+                     <div id="aiPromptSuggestions" class="flex flex-wrap gap-2"></div>
+                 </div>
+
+                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <button id="sendChatMessageBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
+                        <span id="chatButtonText">Thảo luận</span>
+                        <div id="chatButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                    <button id="generateCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
+                        <span id="generateCodeButtonText">Tạo mã từ cuộc trò chuyện</span>
+                        <div id="generateCodeButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                 </div>
+                 <button id="clearChatBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md mt-4 w-full text-sm">
+                    Xóa cuộc trò chuyện
+                 </button>
+            </div>
+
+            <!-- Block 6: Action Buttons -->
+            <div class="mt-6 p-6 bg-white rounded-xl border border-gray-200 shadow-lg">
+                <div class="mb-4">
+                    <label for="newVersionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú cho phiên bản mới:</label>
+                    <input type="text" id="newVersionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+                </div>
+                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                     <button id="saveVersionBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
+                        Lưu phiên bản mới
+                    </button>
+                    <button id="previewBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
+                        Xem trước mã
+                    </button>
+                    <button id="softDeleteVersionBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
+                        Xóa phiên bản
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MessageBox -->
+    <div id="messageBox" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl hidden z-50 transition-opacity duration-300 opacity-0">
+        <span id="messageContent"></span>
+    </div>
+
+    <!-- Modals (Add App, Edit App, Preview, Deleted Versions, Diff, AI Chat History, Prompt Refinement) -->
+    <!-- Add New App Modal -->
+    <div id="addNewAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-2xl font-bold mb-6 text-gray-800">Add New Application</h3>
+            <div class="mb-4">
+                <label for="newAppNameInput" class="block text-gray-700 text-base font-bold mb-2">Application Name:</label>
+                <input type="text" id="newAppNameInput" placeholder="e.g., 'My Blog App'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelNewAppBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Cancel</button>
+                <button id="confirmNewAppBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Add Application</button>
+            </div>
+        </div>
+    </div>
+    <!-- Edit App Modal -->
+    <div id="editAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-2xl font-bold mb-6 text-gray-800">Sửa tên ứng dụng</h3>
+            <div class="mb-4">
+                <label for="editAppNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên ứng dụng:</label>
+                <input type="text" id="editAppNameInput" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelEditAppBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Hủy</button>
+                <button id="confirmEditAppBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Lưu</button>
+            </div>
+        </div>
+    </div>
+    <!-- Preview Modal -->
+    <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div id="previewModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 class="text-xl font-semibold">Bản xem trước</h3>
+                <div class="flex space-x-2">
+                    <button id="mobileViewBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-full transition duration-300 shadow-sm">
+                        Chế độ di động
+                    </button>
+                    <button id="desktopViewBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full transition duration-300 shadow-sm">
+                        Chế độ desktop
+                    </button>
+                </div>
+                <button id="closePreviewBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="p-4 flex flex-col items-center">
+                <div id="previewFrameContainer" class="w-full">
+                    <iframe id="previewFrame" title="Preview Content"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Deleted Versions Modal -->
+    <div id="deletedVersionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <h3 class="text-2xl font-bold mb-6 text-gray-800">Phiên bản đã xóa</h3>
+            <div id="deletedVersionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
+                <div class="text-gray-500 text-center py-4">Đang tải các phiên bản đã xóa...</div>
+            </div>
+            <div class="flex justify-end gap-4 mt-6">
+                <button id="closeDeletedVersionsModalBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diff Modal -->
+    <div id="diffModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div id="diffModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 id="diffModalHeader" class="text-xl font-semibold text-gray-800">So sánh mã nguồn</h3>
+                <button id="closeDiffModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="flex-grow p-4">
+                <div id="monacoDiffEditorContainer" class="w-full h-full border border-gray-200 rounded-lg overflow-hidden shadow-inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Refine Feedback Popup -->
+    <div id="refineFeedbackPopup" class="fixed hidden z-50 p-4 bg-white rounded-lg shadow-xl border border-gray-200">
+        <p class="font-semibold text-gray-800 mb-2">Phản hồi cho đoạn mã được chọn:</p>
+        <textarea id="refineFeedbackInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 mb-2" placeholder="VD: 'Thay đổi màu nút này thành xanh lá cây'"></textarea>
+        <div class="flex justify-end gap-2">
+            <button id="cancelRefineFeedbackBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-1.5 px-3 rounded-lg text-sm">Hủy</button>
+            <button id="sendRefineFeedbackBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-md w-auto flex items-center justify-center gap-2">
+                <span id="refineFeedbackButtonText">Gửi phản hồi</span>
+                <div id="refineFeedbackSpinner" class="spinner hidden w-4 h-4"></div>
+            </button>
+        </div>
+    </div>
+
+    <!-- NEW: AI Chat History Modal -->
+    <div id="aiChatHistoryModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 class="text-xl font-semibold text-gray-800">Lịch sử trò chuyện AI</h3>
+                <button id="closeAiChatHistoryModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div id="aiChatHistoryModalContent" class="overflow-y-auto flex-grow p-4 text-sm leading-relaxed">
+                <!-- Chat history will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Prompt Refinement Modal -->
+    <div id="promptRefinementModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div id="promptRefinementModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-5xl flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 id="promptRefinementModalTitle" class="text-xl font-semibold text-gray-800"></h3>
+                <button id="closePromptRefinementModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="flex-grow p-4 flex flex-col">
+                <label for="promptRefinementContent" class="block text-gray-700 text-base font-bold mb-2">Prompt gửi đến AI (có thể chỉnh sửa):</label>
+                <div id="promptRefinementEditorContainer" class="flex-grow"></div>
+            </div>
+            <div class="p-4 border-t border-gray-200 flex justify-end gap-3">
+                <button id="cancelRefinedPromptBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Hủy</button>
+                <button id="sendRefinedChatBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center gap-2">
+                    <span id="sendRefinedChatButtonText">Gửi Thảo luận</span>
+                    <div id="sendRefinedChatSpinner" class="spinner hidden w-4 h-4"></div>
+                </button>
+                <button id="sendRefinedCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center justify-center gap-2">
+                    <span id="sendRefinedCodeButtonText">Tạo mã</span>
+                    <div id="sendRefinedCodeSpinner" class="spinner hidden w-4 h-4"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+    <!-- Firebase SDK & Custom Script -->
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, getDocs, getDoc, onSnapshot, query, orderBy, setDoc, updateDoc, deleteDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+        import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-ai.js";
+
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7I9ZKYFTc71tFMGA2lM72ykwDuwhEV0o",
+            authDomain: "tudien-b2d17.firebaseapp.com",
+            projectId: "tudien-b2d17",
+            storageBucket: "tudien-b2d17.firebasestorage.app",
+            messagingSenderId: "496472238606",
+            appId: "1:496472238606:web:79769d3c38e546a27dea5f"
+        };
+
+        // Firebase Initialization
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // AI Model Initialization
+        let aiModel;
+        try {
+            const ai = getAI(app, { backend: new GoogleAIBackend() });
+            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+            console.log("Generative Model initialized successfully via Firebase AI SDK.");
+        } catch (e) {
+            console.error("Error initializing AI Model:", e);
+            showMessage("Lỗi khởi tạo AI Model. Kiểm tra Console.", 5000);
+        }
+
+        // Global variables and DOM references
+        let currentAppId = null;
+        let currentAppName = null;
+        let currentVersionId = null; 
+        let userId = null;
+        let allApps = [];
+        let chat = null; // AI chat instance
+        let currentVersionFiles = new Map();
+        
+        let monacoEditor = null;     // For single editor instance
+        let monacoDiffEditor = null; // For diff editor instance
+        let monacoPromptEditor = null; // NEW: For prompt refinement modal
+        let currentEditorType = 'single'; // 'single', 'diff', 'refine', or 'prompt'
+
+        let isRefineModeActive = false; // NEW: Track if refine mode is active
+        let currentRefinementSelection = null; // NEW: Store the current selection for refinement
+        let monacoSelectionDisposable = null; // NEW: Disposable for the selection listener
+
+        let lastAiExplanationMarkdown = ''; // New: To store the raw markdown explanation from AI
+
+        // NEW: File attachment variables
+        let attachedFileContent = null;
+        let attachedFileName = '';
+        const MAX_FILE_SIZE_KB = 200; // Limit to 200KB to manage context window
+        const ALLOWED_FILE_TYPES = ['text/html', 'text/css', 'application/javascript', 'text/plain', 'application/json', 'text/markdown'];
+
+
+        const elements = {
+            authSection: document.getElementById('authSection'),
+            mainAppContent: document.getElementById('mainAppContent'),
+            emailInput: document.getElementById('emailInput'),
+            passwordInput: document.getElementById('passwordInput'),
+            loginBtn: document.getElementById('loginBtn'),
+            registerBtn: document.getElementById('registerBtn'),
+            logoutBtn: document.getElementById('logoutBtn'),
+            userEmailDisplay: document.getElementById('userEmailDisplay'),
+            authErrorMsg: document.getElementById('authErrorMsg'),
+            applicationsList: document.getElementById('applicationsList'),
+            versionsList: document.getElementById('versionsList'),
+            currentAppNameSpan: document.getElementById('currentAppName'),
+            searchInput: document.getElementById('searchInput'),
+            versionFilesList: document.getElementById('versionFilesList'),
+            fileNameInput: document.getElementById('fileNameInput'),
+            versionNotesInput: document.getElementById('versionNotesInput'),
+            editVersionNotesBtn: document.getElementById('editVersionNotesBtn'),
+            saveEditedVersionNotesBtn: document.getElementById('saveEditedVersionNotesBtn'),
+            newVersionNotesInput: document.getElementById('newVersionNotesInput'),
+            monacoEditorContainer: document.getElementById('monacoEditorContainer'),
+            aiChatInput: document.getElementById('aiChatInput'),
+            sendChatMessageBtn: document.getElementById('sendChatMessageBtn'),
+            chatButtonText: document.getElementById('chatButtonText'),
+            chatButtonSpinner: document.getElementById('chatButtonSpinner'),
+            generateCodeBtn: document.getElementById('generateCodeBtn'),
+            generateCodeButtonText: document.getElementById('generateCodeButtonText'),
+            generateCodeButtonSpinner: document.getElementById('generateCodeButtonSpinner'),
+            aiExplanationBox: document.getElementById('aiExplanationBox'),
+            aiPromptSuggestionsContainer: document.getElementById('aiPromptSuggestions'),
+            toggleAiSuggestionsBtn: document.getElementById('toggleAiSuggestionsBtn'),
+            mainStyleSelect: document.getElementById('mainStyleSelect'),
+            saveVersionBtn: document.getElementById('saveVersionBtn'),
+            copyBtn: document.getElementById('copyBtn'),
+            previewBtn: document.getElementById('previewBtn'),
+            softDeleteVersionBtn: document.getElementById('softDeleteVersionBtn'),
+            messageBox: document.getElementById('messageBox'),
+            messageContent: document.getElementById('messageContent'),
+            addNewAppBtn: document.getElementById('addNewAppBtn'),
+            addNewAppModal: document.getElementById('addNewAppModal'),
+            newAppNameInput: document.getElementById('newAppNameInput'),
+            confirmNewAppBtn: document.getElementById('confirmNewAppBtn'),
+            cancelNewAppBtn: document.getElementById('cancelNewAppBtn'),
+            editAppModal: document.getElementById('editAppModal'),
+            editAppNameInput: document.getElementById('editAppNameInput'),
+            confirmEditAppBtn: document.getElementById('confirmEditAppBtn'),
+            cancelEditAppBtn: document.getElementById('cancelEditAppBtn'),
+            previewModal: document.getElementById('previewModal'),
+            closePreviewBtn: document.getElementById('closePreviewBtn'),
+            previewFrame: document.getElementById('previewFrame'),
+            mobileViewBtn: document.getElementById('mobileViewBtn'),
+            desktopViewBtn: document.getElementById('desktopViewBtn'),
+            previewFrameContainer: document.getElementById('previewFrameContainer'),
+            previewModalContent: document.getElementById('previewModalContent'),
+            showDeletedVersionsBtn: document.getElementById('showDeletedVersionsBtn'),
+            deletedVersionsModal: document.getElementById('deletedVersionsModal'),
+            deletedVersionsList: document.getElementById('deletedVersionsList'),
+            closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
+            aiChatHistoryBox: document.getElementById('aiChatHistoryBox'),
+            clearChatBtn: document.getElementById('clearChatBtn'),
+            viewDiffBtn: document.getElementById('viewDiffBtn'),
+            diffModal: document.getElementById('diffModal'),
+            monacoDiffEditorContainer: document.getElementById('monacoDiffEditorContainer'),
+            closeDiffModalBtn: document.getElementById('closeDiffModalBtn'),
+            diffModalHeader: document.getElementById('diffModalHeader'),
+            toggleRefineModeBtn: document.getElementById('toggleRefineModeBtn'), // NEW
+            refineFeedbackPopup: document.getElementById('refineFeedbackPopup'), // NEW
+            refineFeedbackInput: document.getElementById('refineFeedbackInput'), // NEW
+            sendRefineFeedbackBtn: document.getElementById('sendRefineFeedbackBtn'), // NEW
+            cancelRefineFeedbackBtn: document.getElementById('cancelRefineFeedbackBtn'), // NEW
+            refineFeedbackButtonText: document.getElementById('refineFeedbackButtonText'), // NEW
+            refineFeedbackSpinner: document.getElementById('refineFeedbackSpinner'), // NEW
+            expandChatBtn: document.getElementById('expandChatBtn'), // NEW
+            aiChatHistoryModal: document.getElementById('aiChatHistoryModal'), // NEW
+            aiChatHistoryModalContent: document.getElementById('aiChatHistoryModalContent'), // NEW
+            closeAiChatHistoryModalBtn: document.getElementById('closeAiChatHistoryModalBtn'), // NEW
+            
+            // NEW: File attachment elements
+            attachFileBtn: document.getElementById('attachFileBtn'),
+            fileAttachmentInput: document.getElementById('fileAttachmentInput'),
+            attachedFileInfo: document.getElementById('attachedFileInfo'),
+            attachedFileNameDisplay: document.getElementById('attachedFileNameDisplay'),
+            removeAttachedFileBtn: document.getElementById('removeAttachedFileBtn'),
+
+            // NEW: Prompt Refinement Modal elements
+            promptRefinementModal: document.getElementById('promptRefinementModal'),
+            promptRefinementModalTitle: document.getElementById('promptRefinementModalTitle'),
+            promptRefinementEditorContainer: document.getElementById('promptRefinementEditorContainer'),
+            closePromptRefinementModalBtn: document.getElementById('closePromptRefinementModalBtn'),
+            sendRefinedChatBtn: document.getElementById('sendRefinedChatBtn'),
+            sendRefinedChatButtonText: document.getElementById('sendRefinedChatButtonText'),
+            sendRefinedChatSpinner: document.getElementById('sendRefinedChatSpinner'),
+            sendRefinedCodeBtn: document.getElementById('sendRefinedCodeBtn'),
+            sendRefinedCodeButtonText: document.getElementById('sendRefinedCodeButtonText'),
+            sendRefinedCodeSpinner: document.getElementById('sendRefinedCodeSpinner'),
+            cancelRefinedPromptBtn: document.getElementById('cancelRefinedPromptBtn'),
+        };
+
+        const aiPromptSuggestions = [
+            "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:",
+            "Chúng ta sẽ thảo luận về:",
+            "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn.",
+            "Tạo ngay mã nguồn cho trang chủ đơn giản với header, main content và footer." // Added for quick code generation
+        ];
+
+        // --- Monaco Editor Management Functions ---
+
+        // Function to get language from filename
+        function getLanguageFromFilename(filename) {
+            if (filename.endsWith('.html')) return 'html';
+            if (filename.endsWith('.css')) return 'css';
+            if (filename.endsWith('.js')) return 'javascript';
+            if (filename.endsWith('.json')) return 'json';
+            if (filename.endsWith('.md')) return 'markdown';
+            return 'plaintext';
+        }
+
+        // Function to dispose existing editor instances
+        function disposeEditors() {
+            if (monacoEditor) {
+                monacoEditor.dispose();
+                monacoEditor = null;
+            }
+            if (monacoDiffEditor) {
+                monacoDiffEditor.dispose();
+                monacoDiffEditor = null;
+            }
+            if (monacoPromptEditor) { // NEW: Dispose prompt editor
+                monacoPromptEditor.dispose();
+                monacoPromptEditor = null;
+            }
+            // Also dispose selection listener if it exists
+            if (monacoSelectionDisposable) {
+                monacoSelectionDisposable.dispose();
+                monacoSelectionDisposable = null;
+            }
+        }
+
+        // Function to create a single editor
+        function createSingleEditor(value = '// Chọn một tệp hoặc yêu cầu AI tạo mã mới...', filename = 'plaintext') {
+            disposeEditors(); // Ensure no other editor is active
+            currentEditorType = 'single';
+            monacoEditor = monaco.editor.create(elements.monacoEditorContainer, {
+                value: value,
+                language: getLanguageFromFilename(filename),
+                theme: 'vs-light',
+                automaticLayout: true,
+                fontSize: 14,
+                wordWrap: 'on',
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                readOnly: false // Main editor is writable
+            });
+            // Ensure refine mode is off and its listener is disabled when switching to single editor
+            if (isRefineModeActive) {
+                toggleRefineMode(); // This will disable the listener
+            }
+        }
+
+        // Function to create a diff editor
+        function createDiffEditor(originalContent, modifiedContent, filename) {
+            disposeEditors(); // Ensure no other editor is active
+            currentEditorType = 'diff';
+            monacoDiffEditor = monaco.editor.createDiffEditor(elements.monacoDiffEditorContainer, {
+                enableSplitViewResizing: true,
+                renderSideBySide: true, // Default to side-by-side
+                readOnly: true, // Diff view should be read-only
+                theme: 'vs-light',
+                automaticLayout: true,
+                fontSize: 14,
+                wordWrap: 'on',
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+            });
+            const language = getLanguageFromFilename(filename);
+            const originalModel = monaco.editor.createModel(originalContent, language);
+            const modifiedModel = monaco.editor.createModel(modifiedContent, language);
+            monacoDiffEditor.setModel({
+                original: originalModel,
+                modified: modifiedModel
+            });
+            // Ensure refine mode is off and its listener is disabled when switching to diff editor
+            if (isRefineModeActive) {
+                toggleRefineMode();
+            }
+        }
+
+        // NEW: Function to create a prompt editor (Monaco instance in modal)
+        function createPromptEditor(value = '', language = 'markdown') {
+            if (monacoPromptEditor) {
+                monacoPromptEditor.setValue(value);
+                monaco.editor.setModelLanguage(monacoPromptEditor.getModel(), language);
+            } else {
+                currentEditorType = 'prompt'; // Indicate that a prompt editor is active
+                monacoPromptEditor = monaco.editor.create(elements.promptRefinementEditorContainer, {
+                    value: value,
+                    language: language, // Typically markdown or plaintext for prompts
+                    theme: 'vs-light',
+                    automaticLayout: true,
+                    fontSize: 13,
+                    wordWrap: 'on',
+                    minimap: { enabled: false }, // No minimap for prompt editor
+                    scrollBeyondLastLine: false,
+                });
+            }
+            monacoPromptEditor.focus();
+        }
+
+        // Initial Monaco Editor setup on app load/login
+        function initializeEditor() {
+            if (monacoEditor || monacoDiffEditor || monacoPromptEditor) return; // Already initialized
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+            require(['vs/editor/editor.main'], function() {
+                createSingleEditor(); // Start with a single, empty editor
+            });
+        }
+
+        // --- Utility Functions ---
+        function showMessage(message, duration = 3000) {
+            elements.messageContent.textContent = message;
+            elements.messageBox.classList.remove('hidden', 'opacity-0');
+            elements.messageBox.classList.add('opacity-100');
+            setTimeout(() => {
+                elements.messageBox.classList.remove('opacity-100');
+                elements.messageBox.classList.add('opacity-0');
+                setTimeout(() => elements.messageBox.classList.add('hidden'), 300);
+            }, duration);
+        }
+
+        function showAuthError(message) {
+            elements.authErrorMsg.textContent = message;
+        }
+
+        function renderAiPromptSuggestions() {
+            elements.aiPromptSuggestionsContainer.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            aiPromptSuggestions.forEach(prompt => {
+                const button = document.createElement('button');
+                button.textContent = prompt;
+                button.className = 'bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs py-1 px-3 rounded-full transition duration-200 cursor-pointer border border-blue-200 whitespace-nowrap overflow-hidden text-ellipsis shadow-sm';
+                button.title = prompt;
+                button.dataset.prompt = prompt;
+                fragment.appendChild(button);
+            });
+            elements.aiPromptSuggestionsContainer.appendChild(fragment);
+        }
+
+        function toggleAiSuggestions() {
+            elements.aiPromptSuggestionsContainer.classList.toggle('hidden');
+            elements.toggleAiSuggestionsBtn.textContent = elements.aiPromptSuggestionsContainer.classList.contains('hidden') ? 'Hiện' : 'Ẩn';
+        }
+
+        // Function to add messages to chat history UI
+        function addMessageToChatHistory(sender, message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = sender === 'user' ? 'user-message' : 'ai-message';
+            const contentSpan = document.createElement('span');
+
+            if (sender === 'ai') {
+                // Use marked.js to parse Markdown from AI messages
+                contentSpan.innerHTML = marked.parse(message);
+            } else {
+                contentSpan.innerHTML = message.replace(/\n/g, '<br>');
+            }
+            
+            // Prepend sender label to the content span
+            const senderLabel = document.createElement('strong');
+            senderLabel.textContent = sender === 'user' ? 'Bạn:' : 'AI:';
+            messageDiv.appendChild(senderLabel);
+            messageDiv.appendChild(contentSpan); // Append content after sender label
+
+            elements.aiChatHistoryBox.appendChild(messageDiv);
+            elements.aiChatHistoryBox.scrollTop = elements.aiChatHistoryBox.scrollHeight; // Scroll to bottom
+
+            // Also update the modal chat history if it's open
+            if (!elements.aiChatHistoryModal.classList.contains('hidden')) {
+                elements.aiChatHistoryModalContent.appendChild(messageDiv.cloneNode(true)); // Clone to avoid moving element
+                elements.aiChatHistoryModalContent.scrollTop = elements.aiChatHistoryModalContent.scrollHeight;
+            }
+        }
+
+        // --- Firebase Auth ---
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                elements.userEmailDisplay.textContent = user.email || "Anonymous";
+                elements.userEmailDisplay.classList.remove('hidden');
+                elements.logoutBtn.classList.remove('hidden');
+                elements.authSection.classList.add('hidden');
+                elements.mainAppContent.classList.remove('hidden');
+                elements.mainAppContent.classList.add('grid');
+                initializeEditor(); // Initialize Monaco Editor after login
+                loadApplications();
+                renderAiPromptSuggestions();
+            } else {
+                userId = null;
+                elements.userEmailDisplay.classList.add('hidden');
+                elements.logoutBtn.classList.add('hidden');
+                elements.authSection.classList.remove('hidden');
+                elements.mainAppContent.classList.add('hidden');
+                elements.mainAppContent.classList.remove('grid');
+                disposeEditors(); // Dispose editors on logout
+            }
+        });
+
+        const handleAuth = async (isRegister) => {
+            const email = elements.emailInput.value.trim();
+            const password = elements.passwordInput.value.trim();
+            if (!email || !password) return showAuthError("Vui lòng nhập email và mật khẩu.");
+            try {
+                if (isRegister) await createUserWithEmailAndPassword(auth, email, password);
+                else await signInWithEmailAndPassword(auth, email, password);
+                showMessage(isRegister ? "Đăng ký thành công!" : "Đăng nhập thành công!");
+                showAuthError('');
+            } catch (error) {
+                showAuthError(error.message);
+            }
+        };
+
+        const handleLogout = () => signOut(auth).then(() => showMessage("Đã đăng xuất."));
+
+        // --- Firestore Logic ---
+        const getCollections = {
+            applications: () => collection(db, `users/${userId}/applications`),
+            versions: (appId) => collection(db, `users/${userId}/applications/${appId}/versions`),
+            files: (appId, versionId) => collection(db, `users/${userId}/applications/${appId}/versions/${versionId}/files`)
+        };
+
+        const getFilesForVersion = async (appId, versionId) => {
+            const files = new Map();
+            let currentId = versionId;
+            while (currentId) {
+                const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${currentId}`));
+                if (!versionSnap.exists()) break;
+                const versionData = versionSnap.data();
+                
+                const filesSnapshot = await getDocs(query(getCollections.files(appId, currentId)));
+                filesSnapshot.forEach(fileDoc => {
+                    const fileData = fileDoc.data();
+                    if (!files.has(fileData.filename)) {
+                        files.set(fileData.filename, { ...fileData, id: fileDoc.id, versionId: currentId });
+                    }
+                });
+                currentId = versionData.parentVersionId || null;
+            }
+            return files;
+        };
+
+        // Function to get specific file content from a given version ID
+        const getFileContentForSpecificVersion = async (versionId, filename) => {
+            if (!userId || !currentAppId || !versionId || !filename) return null;
+            try {
+                const filesCollection = getCollections.files(currentAppId, versionId);
+                const q = query(filesCollection, where('filename', '==', filename));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    return snapshot.docs[0].data().content;
+                }
+            } catch (error) {
+                console.error("Error fetching file content for specific version:", error);
+            }
+            return null;
+        };
+
+        // --- UI Rendering ---
+        const renderApplications = (appsToRender) => {
+            elements.applicationsList.innerHTML = appsToRender.length === 0 
+                ? '<div class="text-gray-500 text-center py-4">Chưa có ứng dụng nào.</div>'
+                : '';
+            const fragment = document.createDocumentFragment();
+            appsToRender.forEach((appData, index) => {
+                const appItem = document.createElement('div');
+                appItem.className = `list-item bg-white p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm flex justify-between items-center ${appData.id === currentAppId ? 'selected' : ''}`;
+                appItem.dataset.appId = appData.id;
+                appItem.dataset.appName = appData.name;
+                appItem.innerHTML = `
+                    <div class="flex-grow font-medium text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">${index + 1}. ${appData.name}</div>
+                    <div class="flex-shrink-0 flex gap-0.5">
+                        <button class="edit-app-btn bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-0.5 px-1.5 rounded-md" title="Sửa">Sửa</button>
+                        <button class="delete-app-btn bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-0.5 px-1.5 rounded-md" title="Xóa">Xóa</button>
+                    </div>
+                `;
+                fragment.appendChild(appItem);
+            });
+            elements.applicationsList.appendChild(fragment);
+        };
+
+        const loadApplications = () => {
+            if (!userId) return;
+            const q = query(getCollections.applications(), orderBy('createdAt', 'desc'));
+            onSnapshot(q, (snapshot) => {
+                allApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderApplications(allApps);
+            }, (error) => console.error("Error loading applications:", error));
+        };
+
+        const selectApplication = (appId, appName) => {
+            currentAppId = appId;
+            currentAppName = appName;
+            currentVersionId = null;
+            
+            clearChatHistory(); // Reset chat when application changes
+            elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Đã chọn ứng dụng mới. Bắt đầu trò chuyện.</p>';
+            currentVersionFiles.clear();
+            lastAiExplanationMarkdown = ''; // Reset AI explanation state
+            removeAttachedFile(); // Clear attached file when application changes
+            elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight when app changes
+
+            elements.currentAppNameSpan.textContent = appName;
+            document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
+            document.querySelector(`#applicationsList [data-app-id="${appId}"]`)?.classList.add('selected');
+
+            loadVersions(appId);
+            createSingleEditor(); // Ensure a single editor is created
+            elements.fileNameInput.value = '';
+            elements.versionNotesInput.value = '';
+            elements.versionNotesInput.disabled = true;
+            elements.editVersionNotesBtn.classList.remove('hidden');
+            elements.saveEditedVersionNotesBtn.classList.add('hidden');
+            elements.newVersionNotesInput.value = '';
+            elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
+            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
+            elements.aiChatInput.value = '';
+            elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
+            
+            // NEW: Ensure refine mode is turned off
+            if (isRefineModeActive) {
+                toggleRefineMode();
+            }
+            elements.refineFeedbackPopup.classList.add('hidden', 'translate-x-full'); // Hide popup
+            elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+        };
+
+        const loadVersions = (appId) => {
+            if (!userId || !appId) return;
+            const q = query(getCollections.versions(appId), where('deleted', '!=', true), orderBy('timestamp', 'desc'));
+            onSnapshot(q, (snapshot) => {
+                elements.versionsList.innerHTML = snapshot.empty ? '<div class="text-gray-500 text-center py-4">Chưa có phiên bản nào.</div>' : '';
+                const fragment = document.createDocumentFragment();
+                snapshot.forEach(doc => {
+                    const version = doc.data();
+                    const versionItem = document.createElement('div');
+                    versionItem.className = `list-item bg-white p-3 rounded-lg cursor-pointer shadow-sm ${doc.id === currentVersionId ? 'selected' : ''}`;
+                    versionItem.innerHTML = `
+                        <p class="font-medium text-gray-700">Phiên bản: ${version.versionIndex || 'N/A'}</p>
+                        <p class="text-sm text-gray-500">${version.notes || 'Không có ghi chú'}</p>
+                        <p class="text-xs text-gray-400">${new Date(version.timestamp).toLocaleString()}</p>`;
+                    versionItem.dataset.versionId = doc.id;
+                    fragment.appendChild(versionItem);
+                });
+                elements.versionsList.appendChild(fragment);
+            });
+        };
+
+        const selectVersion = async (appId, versionId) => {
+            currentVersionId = versionId;
+            
+            elements.aiChatInput.value = '';
+            document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
+            document.querySelector(`#versionsList [data-version-id="${versionId}"]`)?.classList.add('selected');
+            elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
+            
+            // Ensure single editor mode and clear content when a new version is selected
+            createSingleEditor();
+            elements.fileNameInput.value = ''; // Clear filename input
+            removeAttachedFile(); // Clear attached file when version changes
+            elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight when version changes
+
+            // NEW: Ensure refine mode is turned off
+            if (isRefineModeActive) {
+                toggleRefineMode();
+            }
+            elements.refineFeedbackPopup.classList.add('hidden'); // Hide popup
+            elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+
+            try {
+                const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
+                const versionData = versionSnap.exists() ? versionSnap.data() : null;
+
+                elements.versionNotesInput.value = versionData ? (versionData.notes || 'Không có ghi chú') : 'Phiên bản không tồn tại.';
+                elements.versionNotesInput.disabled = true;
+                elements.editVersionNotesBtn.classList.remove('hidden');
+                elements.saveEditedVersionNotesBtn.classList.add('hidden');
+                elements.newVersionNotesInput.value = '';
+
+                // Load AI explanation for the selected version
+                const aiExplanation = versionData?.aiExplanation || '<p class="text-gray-500">Phiên bản này không có giải thích từ AI.</p>';
+                elements.aiExplanationBox.innerHTML = marked.parse(aiExplanation);
+                lastAiExplanationMarkdown = aiExplanation; // Update lastAiExplanationMarkdown
+
+                // Load and display chat history
+                elements.aiChatHistoryBox.innerHTML = ''; // Clear existing chat history display
+                elements.aiChatHistoryModalContent.innerHTML = ''; // Clear modal chat history display
+                const loadedChatHistory = versionData?.chatHistory;
+                if (loadedChatHistory && loadedChatHistory.length > 0) {
+                    // Only display user and model messages with text content, skip system prompt
+                    const displayHistory = loadedChatHistory.filter(msg => 
+                        (msg.role === 'user' || msg.role === 'model') && 
+                        msg.parts && msg.parts.length > 0 && msg.parts[0].text &&
+                        msg.parts[0].text !== initialSystemPrompt
+                    );
+                    chat = aiModel.startChat({ history: loadedChatHistory }); // Retain full history for AI
+                    displayHistory.forEach(msg => {
+                        addMessageToChatHistory(msg.role, msg.parts[0].text);
+                    });
+                } else {
+                    chat = null; // Ensure chat is null if no history is loaded
+                    elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Phiên bản này không có lịch sử trò chuyện. Bắt đầu trò chuyện mới.</p>';
+                    elements.aiChatHistoryModalContent.innerHTML = '<p class="text-gray-500 text-center">Phiên bản này không có lịch sử trò chuyện.</p>';
+                }
+
+                currentVersionFiles = await getFilesForVersion(appId, versionId);
+                elements.versionFilesList.innerHTML = '';
+                if (currentVersionFiles.size > 0) {
+                    const sortedFiles = Array.from(currentVersionFiles.values()).sort((a, b) => a.filename.localeCompare(b.filename));
+                    const fragment = document.createDocumentFragment();
+                    sortedFiles.forEach(fileData => {
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'list-item bg-white p-2 rounded-lg cursor-pointer shadow-sm text-sm';
+                        fileItem.textContent = fileData.filename;
+                        fileItem.dataset.filename = fileData.filename;
+                        fragment.appendChild(fileItem);
+                    });
+                    elements.versionFilesList.appendChild(fragment);
+                } else {
+                    elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
+                }
+                
+                // Update diff button visibility after version is selected and details are loaded
+                updateDiffButtonVisibility();
+
+            } catch (error) {
+                console.error("Error loading version details:", error);
+                elements.versionFilesList.innerHTML = '<div class="text-red-500">Lỗi khi tải tệp.</div>';
+                elements.aiExplanationBox.innerHTML = '<p class="text-red-500">Lỗi khi tải giải thích của AI.</p>';
+                elements.aiChatHistoryBox.innerHTML = '<p class="text-red-500">Lỗi khi tải lịch sử trò chuyện.</p>';
+                elements.aiChatHistoryModalContent.innerHTML = '<p class="text-red-500">Lỗi khi tải lịch sử trò chuyện.</p>';
+            }
+        };
+
+        const loadFileIntoEditor = (filename) => {
+            // Ensure we are in single editor mode first
+            // This will dispose any active diff editor and create a new single editor
+            createSingleEditor(); 
+
+            const fileData = currentVersionFiles.get(filename);
+            if (fileData) {
+                elements.fileNameInput.value = fileData.filename;
+                monacoEditor.setValue(fileData.content);
+                monaco.editor.setModelLanguage(monacoEditor.getModel(), getLanguageFromFilename(fileData.filename));
+                
+                showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
+                
+                elements.aiChatInput.value = ''; // Keep clearing only the input box
+                removeAttachedFile(); // Clear attached file when loading a new file into editor
+                elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight when new file loaded
+
+                // Check if current version has a parent to enable diff button
+                updateDiffButtonVisibility();
+
+                // NEW: Ensure refine mode is turned off and popup is hidden when a new file is loaded
+                if (isRefineModeActive) {
+                    toggleRefineMode();
+                }
+                elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+            }
+        };
+
+        // Function to toggle visibility of the Diff button
+        const updateDiffButtonVisibility = async () => {
+            if (!currentVersionId || !elements.fileNameInput.value || !currentAppId) {
+                elements.viewDiffBtn.classList.add('hidden');
+                return;
+            }
+            try {
+                const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`));
+                if (versionSnap.exists() && versionSnap.data().parentVersionId) {
+                    elements.viewDiffBtn.classList.remove('hidden');
+                } else {
+                    elements.viewDiffBtn.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Error checking parent version:", error);
+                elements.viewDiffBtn.classList.add('hidden');
+            }
+        };
+
+        // Function to handle viewing diff with parent version
+        const viewDiffWithParent = async () => {
+            if (!currentAppId || !currentVersionId || !elements.fileNameInput.value) {
+                return showMessage("Vui lòng chọn một phiên bản và một tệp để xem diff.", 3000);
+            }
+            // NEW: Prevent viewing diff if refine mode is active
+            if (isRefineModeActive) {
+                return showMessage("Vui lòng tắt chế độ tinh chỉnh trước khi xem diff.", 5000);
+            }
+
+            const currentFileName = elements.fileNameInput.value;
+            const currentFileContent = monacoEditor.getValue(); // Get content from the current single editor
+            
+            // Get parent version ID
+            const currentVersionDoc = await getDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`));
+            if (!currentVersionDoc.exists()) {
+                return showMessage("Phiên bản hiện tại không tồn tại.", 3000);
+            }
+            const currentVersionData = currentVersionDoc.data();
+            const parentVersionId = currentVersionData.parentVersionId;
+
+            if (!parentVersionId) {
+                return showMessage("Phiên bản đã chọn không có phiên bản cha để so sánh.", 3000);
+            }
+
+            // Get parent version's details for display in header
+            const parentVersionDoc = await getDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${parentVersionId}`));
+            const parentVersionData = parentVersionDoc.exists() ? parentVersionDoc.data() : {};
+            const parentVersionNotes = parentVersionData.notes || 'Không ghi chú';
+            const parentVersionIndex = parentVersionData.versionIndex || 'N/A';
+
+            // Fetch the content of the same file from the parent version
+            const parentFileContent = await getFileContentForSpecificVersion(parentVersionId, currentFileName);
+
+            if (parentFileContent === null) {
+                return showMessage(`Không tìm thấy tệp "${currentFileName}" trong phiên bản cha để so sánh.`, 5000);
+            }
+
+            // Set up and show the diff editor
+            elements.diffModalHeader.textContent = `So sánh: ${currentFileName} (Phiên bản ${parentVersionIndex} - "${parentVersionNotes}") với phiên bản hiện tại`;
+            createDiffEditor(parentFileContent, currentFileContent, currentFileName);
+            elements.diffModal.classList.remove('hidden');
+        };
+
+        // NEW: Function to handle selection change in Monaco Editor for refinement
+        const onMonacoSelectionChange = (e) => {
+            if (!isRefineModeActive || !monacoEditor) {
+                elements.refineFeedbackPopup.classList.add('hidden', 'translate-x-full'); // Ensure it's hidden
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                return;
+            }
+
+            const selection = e.selection;
+            
+            // Check if it's an actual text range selection (start and end are different)
+            // This filters out simple cursor clicks.
+            if (selection.startLineNumber === selection.endLineNumber && selection.startColumn === selection.endColumn) {
+                elements.refineFeedbackPopup.classList.add('hidden'); // No actual selection (just cursor movement/click)
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                currentRefinementSelection = null;
+                return;
+            }
+
+            const selectedText = monacoEditor.getModel().getValueInRange(selection);
+            if (selectedText.trim() === '') {
+                elements.refineFeedbackPopup.classList.add('hidden'); // Only whitespace selected
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                currentRefinementSelection = null;
+                return;
+            }
+
+            currentRefinementSelection = selection;
+
+            // Get the pixel coordinates of the end of the selection (better for pop-up below)
+            // This returns { top, left } relative to the editor's visible area.
+            const endPositionCoords = monacoEditor.getScrolledVisiblePosition(new monaco.Position(selection.endLineNumber, selection.endColumn));
+            
+            if (!endPositionCoords) {
+                // If the selected part is not currently visible in the editor viewport, hide popup
+                elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                currentRefinementSelection = null;
+                return;
+            }
+
+            const editorDomNode = monacoEditor.getDomNode();
+            const editorRect = editorDomNode.getBoundingClientRect(); // Rect of the editor container in viewport
+
+            // Calculate popup position relative to viewport
+            // Position below the selection + padding
+            let popupTop = editorRect.top + endPositionCoords.top + monacoEditor.getOption(monaco.editor.EditorOption.lineHeight) + 10; // 10px below the line
+            let popupLeft = editorRect.left + endPositionCoords.left;
+
+            // Basic boundary adjustments (can be refined further for complex layouts)
+            // Adjust if it goes off bottom of the window
+            if (popupTop + elements.refineFeedbackPopup.offsetHeight > window.innerHeight - 20) {
+                // If not enough space below, try positioning above the start of the selection
+                const startPositionCoords = monacoEditor.getScrolledVisiblePosition(new monaco.Position(selection.startLineNumber, selection.startColumn));
+                if (startPositionCoords) {
+                    popupTop = editorRect.top + startPositionCoords.top - elements.refineFeedbackPopup.offsetHeight - 10;
+                } else {
+                    // Fallback to center if both above/below are problematic
+                    popupTop = window.innerHeight / 2 - elements.refineFeedbackPopup.offsetHeight / 2;
+                }
+            }
+            // Adjust if it goes off right side
+            if (popupLeft + elements.refineFeedbackPopup.offsetWidth > window.innerWidth - 20) {
+                popupLeft = window.innerWidth - elements.refineFeedbackPopup.offsetWidth - 20;
+            }
+            // Adjust if it goes off left side
+            if (popupLeft < 20) {
+                popupLeft = 20;
+            }
+
+            elements.refineFeedbackPopup.style.top = `${popupTop}px`;
+            elements.refineFeedbackPopup.style.left = `${popupLeft}px`;
+            elements.refineFeedbackPopup.classList.remove('hidden');
+            elements.refineFeedbackPopup.classList.add('visible'); // Show popup with new class
+            elements.refineFeedbackInput.focus();
+        };
+
+        // NEW: Toggle Refine Mode
+        const toggleRefineMode = () => {
+            if (!monacoEditor) {
+                return showMessage("Trình soạn thảo chưa sẵn sàng.", 3000);
+            }
+            if (currentEditorType === 'diff') {
+                return showMessage("Vui lòng đóng chế độ xem diff trước khi bật chế độ tinh chỉnh.", 5000);
+            }
+
+            isRefineModeActive = !isRefineModeActive;
+
+            if (isRefineModeActive) {
+                elements.toggleRefineModeBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+                elements.toggleRefineModeBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                elements.toggleRefineModeBtn.textContent = 'Tắt Tinh chỉnh';
+                // Attach listener only when active
+                monacoSelectionDisposable = monacoEditor.onDidChangeCursorSelection(onMonacoSelectionChange);
+                showMessage("Chế độ tinh chỉnh đã được bật. Chọn đoạn mã để gửi phản hồi.", 4000);
+            } else {
+                elements.toggleRefineModeBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                elements.toggleRefineModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+                elements.toggleRefineModeBtn.textContent = 'Tinh chỉnh Code';
+                // Dispose listener when inactive
+                if (monacoSelectionDisposable) {
+                    monacoSelectionDisposable.dispose();
+                    monacoSelectionDisposable = null;
+                }
+                elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                currentRefinementSelection = null;
+                elements.refineFeedbackInput.value = '';
+                showMessage("Chế độ tinh chỉnh đã được tắt.", 3000);
+            }
+        };
+
+        // NEW: Send Refine Feedback (This still works the same as before, no changes needed for prompt refinement flow)
+        const sendRefineFeedback = async () => {
+            if (!aiModel || !monacoEditor || !currentRefinementSelection || !currentAppId) {
+                return showMessage("Không có mã được chọn hoặc AI/trình soạn thảo chưa sẵn sàng.", 3000);
+            }
+            const userFeedbackText = elements.refineFeedbackInput.value.trim();
+            if (!userFeedbackText) {
+                return showMessage("Vui lòng nhập phản hồi của bạn.", 3000);
+            }
+
+            // Start loading indicators
+            elements.sendRefineFeedbackBtn.disabled = true;
+            elements.cancelRefineFeedbackBtn.disabled = true;
+            elements.refineFeedbackInput.disabled = true;
+            elements.refineFeedbackButtonText.textContent = 'Đang gửi...';
+            elements.refineFeedbackSpinner.classList.remove('hidden');
+            if (monacoEditor) monacoEditor.updateOptions({ readOnly: true }); // Make editor read-only
+            showMessage("AI đang tinh chỉnh mã. Vui lòng đợi...", 5000); // Persistent message
+
+            try {
+                const fullCurrentCode = monacoEditor.getValue();
+                const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+                const selectedCode = monacoEditor.getModel().getValueInRange(currentRefinementSelection);
+
+                // Get context (e.g., 5 lines before and after)
+                const model = monacoEditor.getModel();
+                const startLine = Math.max(1, currentRefinementSelection.startLineNumber - 5);
+                const endLine = Math.min(model.getLineCount(), currentRefinementSelection.endLineNumber + 5);
+                const contextRange = new monaco.Range(startLine, 1, endLine, model.getLineMaxColumn(endLine));
+                const contextCode = model.getValueInRange(contextRange);
+
+                let codeGenPrompt = `Dựa trên mã nguồn tệp hiện tại "${currentFileName}", tôi muốn bạn tinh chỉnh một đoạn mã cụ thể.
+
+Mã nguồn đầy đủ của tệp hiện tại:
+\`\`\`${getLanguageFromFilename(currentFileName)}
+${fullCurrentCode}
+\`\`\`
+
+Đây là đoạn mã mà tôi đã chọn để tinh chỉnh:
+\`\`\`${getLanguageFromFilename(currentFileName)}
+${selectedCode}
+\`\`\`
+
+Đây là ngữ cảnh xung quanh đoạn mã được chọn (một vài dòng trước và sau nó):
+\`\`\`${getLanguageFromFilename(currentFileName)}
+${contextCode}
+\`\`\`
+
+Yêu cầu của tôi đối với đoạn mã ĐÃ CHỌN này là: "${userFeedbackText}"
+
+Hãy thực hiện thay đổi và trả về TOÀN BỘ TỆP ĐÃ ĐƯỢC CẬP NHẬT. Đảm bảo mã hoàn chỉnh, sạch sẽ và chỉ thay đổi những gì được yêu cầu trong đoạn mã được chọn hoặc ngữ cảnh trực tiếp của nó nếu cần.
+
+Hãy tuân thủ định dạng sau:
+Đầu tiên, giải thích chi tiết và kỹ lưỡng những thay đổi bạn đã thực hiện, sử dụng định dạng Markdown (tiêu đề, danh sách, đoạn mã) để trình bày rõ ràng.
+Sau đó, thêm dòng phân cách '---CODE---'.
+Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).`;
+                
+                addMessageToChatHistory('user', `Yêu cầu tinh chỉnh mã: "${userFeedbackText}" (đoạn mã: ${selectedCode.substring(0, 50)}...)`);
+
+                const result = await chat.sendMessage(codeGenPrompt);
+                let fullResponseText = result.response.text();
+                
+                const separator = '---CODE---';
+                let explanation = "AI không cung cấp giải thích.";
+                let newCode = fullResponseText;
+
+                if (fullResponseText.includes(separator)) {
+                    const parts = fullResponseText.split(separator);
+                    explanation = parts[0].trim();
+                    newCode = parts.slice(1).join(separator).trim();
+                } else {
+                    if ((fullResponseText.includes('<html') || fullResponseText.includes('{') || fullResponseText.includes('function') || fullResponseText.includes('body {')) && fullResponseText.length > 100) {
+                        newCode = fullResponseText;
+                        explanation = "AI đã tạo mã nhưng không cung cấp giải thích riêng biệt. Vui lòng xem mã.";
+                    } else {
+                        explanation = fullResponseText;
+                        newCode = "// AI không tạo mã. Đây là phản hồi dạng văn bản.";
+                    }
+                }
+                
+                elements.aiExplanationBox.innerHTML = marked.parse(explanation); 
+                lastAiExplanationMarkdown = explanation;
+                
+                monacoEditor.setValue(newCode); // Update the entire editor content
+
+                showMessage("Mã đã được tinh chỉnh thành công!");
+                addMessageToChatHistory('ai', "Đã tinh chỉnh mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
+
+            } catch (error) {
+                console.error("Error sending refine feedback:", error);
+                showMessage(`Lỗi khi tinh chỉnh mã: ${error.message}`, 5000);
+            } finally {
+                // Reset loading indicators
+                elements.sendRefineFeedbackBtn.disabled = false;
+                elements.cancelRefineFeedbackBtn.disabled = false;
+                elements.refineFeedbackInput.disabled = false;
+                elements.refineFeedbackButtonText.textContent = 'Gửi phản hồi';
+                elements.refineFeedbackSpinner.classList.add('hidden');
+                if (monacoEditor) monacoEditor.updateOptions({ readOnly: false }); // Make editor writable again
+                
+                elements.refineFeedbackInput.value = '';
+                toggleRefineMode(); // Turn off refine mode after sending feedback (this also hides popup)
+            }
+        };
+
+        const cancelRefineFeedback = () => {
+            elements.refineFeedbackInput.value = '';
+            toggleRefineMode(); // Turn off refine mode and hide popup
+        };
+
+        // NEW: Function to clear attached file data and UI
+        function removeAttachedFile() {
+            attachedFileContent = null;
+            attachedFileName = '';
+            elements.fileAttachmentInput.value = ''; // Clear the input field's selected file
+            elements.attachedFileInfo.classList.add('hidden');
+            elements.attachedFileNameDisplay.textContent = '';
+            // No message here as it's often called internally
+        }
+
+        // --- AI Logic ---
+        const READY_FOR_CODE_MARKER = '[READY_FOR_CODE]'; // Marker for AI to signal readiness for code generation
+        const initialSystemPrompt = `Bạn là một trợ lý lập trình chuyên sâu về HTML, CSS, và JavaScript.
+**Mục tiêu của bạn:**
+*   **Khi tôi nhấn 'Gửi tin nhắn' (Send Message)**: Bạn sẽ tham gia vào cuộc trò chuyện, thảo luận, phân tích, giải thích, đưa ra lời khuyên hoặc gợi ý về mã nguồn hiện tại trong trình soạn thảo. **Bạn KHÔNG được tạo ra mã nguồn hoặc sử dụng định dạng '---CODE---' trong các phản hồi này.**
+*   **Khi tôi nhấn 'Tạo mã từ cuộc trò chuyện' (Generate Code from Chat)**: Đây là yêu cầu của tôi để bạn tạo ra mã nguồn. Bạn PHẢI trả lời theo định dạng:
+    1.  Giải thích ngắn gọn các thay đổi bạn đã thực hiện.
+    2.  Thêm dòng phân cách '---CODE---'.
+    3.  Chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).
+Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện tại trong trình soạn thảo. Tôi sẽ luôn cung cấp mã nguồn hiện tại cho bạn trong mỗi tin nhắn của tôi.
+
+**Gợi ý tạo mã:** Khi bạn cảm thấy cuộc thảo luận đã đủ rõ ràng và bạn có thể tạo mã theo yêu cầu, hãy kết thúc phản hồi của mình bằng dấu hiệu đặc biệt "${READY_FOR_CODE_MARKER}". Tôi sẽ sử dụng dấu hiệu này để gợi ý cho người dùng rằng đã đến lúc tạo mã.`;
+
+
+        // ORIGINAL `sendChatMessage` - now prepares prompt for modal
+        const sendChatMessage = async () => {
+            if (!aiModel) return showMessage("Mô hình AI chưa sẵn sàng.");
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi gửi tin nhắn.", 5000);
+            }
+            const userMessage = elements.aiChatInput.value.trim();
+            if (!userMessage) return showMessage("Vui lòng nhập tin nhắn.");
+
+            elements.chatButtonText.textContent = 'Đang chuẩn bị...';
+            elements.chatButtonSpinner.classList.remove('hidden');
+            elements.sendChatMessageBtn.disabled = true;
+            elements.generateCodeBtn.disabled = true; // Disable generate during prep
+            
+            try {
+                // Prepare the full prompt string for display and refinement
+                const currentCode = monacoEditor ? monacoEditor.getValue() : "// Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
+                const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+                
+                let messageForAI = `Tệp hiện tại: ${currentFileName}\nMã nguồn hiện tại:\n\`\`\`\n${currentCode}\n\`\`\`\n`;
+
+                if (attachedFileContent) {
+                    messageForAI += `\n\n[Tệp đính kèm: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
+                }
+                
+                messageForAI += `Tin nhắn của tôi: ${userMessage}`;
+
+                // Open the prompt refinement modal
+                await openPromptRefinementModal(messageForAI, 'chat', userMessage);
+
+            } catch (error) {
+                console.error("Error preparing chat message:", error);
+                showMessage(`Lỗi khi chuẩn bị tin nhắn: ${error.message}`, 5000);
+            } finally {
+                elements.chatButtonText.textContent = 'Thảo luận';
+                elements.chatButtonSpinner.classList.add('hidden');
+                elements.sendChatMessageBtn.disabled = false;
+                elements.generateCodeBtn.disabled = false; // Re-enable generate button
+            }
+        };
+
+        // ORIGINAL `generateCodeFromAI` - now prepares prompt for modal
+        const generateCodeFromAI = async () => {
+            if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
+            
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi tạo mã mới.", 5000);
+            }
+
+            elements.generateCodeButtonText.textContent = 'Đang chuẩn bị...';
+            elements.generateCodeButtonSpinner.classList.remove('hidden');
+            elements.generateCodeBtn.disabled = true;
+            elements.sendChatMessageBtn.disabled = true; // Disable chat during prep
+
+            try {
+                const currentCode = monacoEditor.getValue();
+                const selectedStyle = elements.mainStyleSelect.value;
+                const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+
+                let codeGenPrompt = `Dựa trên toàn bộ cuộc trò chuyện của chúng ta và mã nguồn hiện tại trong tệp "${currentFileName}":
+\`\`\`
+${currentCode}
+\`\`\`
+`;
+                if (attachedFileContent) {
+                    codeGenPrompt += `\n\n[Tệp đính kèm để tham khảo: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
+                }
+
+                codeGenPrompt += `Vui lòng tạo ra mã nguồn hoàn chỉnh, đã được cập nhật hoặc mới dựa trên những gì chúng ta đã thảo luận.`;
+                
+                if (selectedStyle) {
+                    codeGenPrompt += ` Áp dụng phong cách "${selectedStyle}" cho mã nguồn và giải thích của bạn.`;
+                }
+
+                codeGenPrompt += `
+Hãy tuân thủ định dạng sau:
+Đầu tiên, giải thích chi tiết và kỹ lưỡng những thay đổi bạn đã thực hiện, sử dụng định dạng Markdown (tiêu đề, danh sách, đoạn mã) để trình bày rõ ràng.
+Sau đó, thêm dòng phân cách '---CODE---'.
+Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).`;
+                
+                // Open the prompt refinement modal for code generation
+                await openPromptRefinementModal(codeGenPrompt, 'generate', "Yêu cầu tạo mã từ cuộc trò chuyện.");
+
+            } catch (error) {
+                console.error("Error preparing code generation prompt:", error);
+                showMessage(`Lỗi khi chuẩn bị tạo mã: ${error.message}`, 5000);
+            } finally {
+                elements.generateCodeButtonText.textContent = 'Tạo mã từ cuộc trò chuyện';
+                elements.generateCodeButtonSpinner.classList.add('hidden');
+                elements.generateCodeBtn.disabled = false;
+                elements.sendChatMessageBtn.disabled = false;
+            }
+        };
+
+        // NEW: Function to open the prompt refinement modal
+        const openPromptRefinementModal = async (initialPromptContent, actionType, userOriginalMessage) => {
+            elements.promptRefinementModal.classList.remove('hidden');
+            elements.aiChatInput.value = ''; // Clear main input after passing to modal
+            removeAttachedFile(); // Clear attached file info
+
+            // Set modal title and button visibility based on actionType
+            if (actionType === 'chat') {
+                elements.promptRefinementModalTitle.textContent = "Tinh chỉnh Prompt (Thảo luận)";
+                elements.sendRefinedChatBtn.classList.remove('hidden');
+                elements.sendRefinedCodeBtn.classList.add('hidden');
+            } else { // 'generate'
+                elements.promptRefinementModalTitle.textContent = "Tinh chỉnh Prompt (Tạo mã)";
+                elements.sendRefinedChatBtn.classList.add('hidden');
+                elements.sendRefinedCodeBtn.classList.remove('hidden');
+            }
+
+            // Create Monaco Editor for the prompt
+            // Using a monospace font and smaller font size for prompt content
+            require(['vs/editor/editor.main'], function() {
+                createPromptEditor(initialPromptContent, 'markdown'); // Use markdown language for prompt editor
+                monacoPromptEditor.layout(); // Ensure it renders correctly
+            });
+            
+            // Set up click handlers for buttons in the modal
+            // Remove previous listeners first to prevent duplicates
+            elements.sendRefinedChatBtn.onclick = null;
+            elements.sendRefinedCodeBtn.onclick = null;
+
+            elements.sendRefinedChatBtn.onclick = () => sendRefinedPromptToAI(monacoPromptEditor.getValue(), 'chat', userOriginalMessage);
+            elements.sendRefinedCodeBtn.onclick = () => sendRefinedPromptToAI(monacoPromptEditor.getValue(), 'generate', userOriginalMessage);
+        };
+
+        // NEW: Function to close the prompt refinement modal
+        const closePromptRefinementModal = () => {
+            elements.promptRefinementModal.classList.add('hidden');
+            if (monacoPromptEditor) {
+                monacoPromptEditor.dispose(); // Dispose editor when modal is closed
+                monacoPromptEditor = null;
+            }
+        };
+
+        // NEW: Function to send the refined prompt to AI
+        const sendRefinedPromptToAI = async (refinedPrompt, actionType, userOriginalMessage) => {
+            if (!aiModel || !refinedPrompt) return showMessage("Prompt rỗng hoặc AI chưa sẵn sàng.");
+
+            // Disable buttons and show spinners in the modal
+            elements.sendRefinedChatBtn.disabled = true;
+            elements.sendRefinedCodeBtn.disabled = true;
+            elements.cancelRefinedPromptBtn.disabled = true;
+            if (monacoPromptEditor) monacoPromptEditor.updateOptions({ readOnly: true });
+
+            if (actionType === 'chat') {
+                elements.sendRefinedChatButtonText.textContent = 'Đang gửi...';
+                elements.sendRefinedChatSpinner.classList.remove('hidden');
+                showMessage("AI đang thảo luận. Vui lòng đợi...", 5000);
+            } else { // 'generate'
+                elements.sendRefinedCodeButtonText.textContent = 'Đang tạo mã...';
+                elements.sendRefinedCodeSpinner.classList.remove('hidden');
+                showMessage("AI đang tạo mã. Vui lòng đợi...", 5000);
+            }
+
+            try {
+                // Always add the user's original message to chat history immediately.
+                // The AI's response will follow.
+                addMessageToChatHistory('user', userOriginalMessage);
+
+                // Initialize chat with the system prompt if not already initialized
+                if (!chat) {
+                    const initialHistoryForNewChat = [
+                        { role: "user", parts: [{ text: initialSystemPrompt }] },
+                        { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] }
+                    ];
+                    chat = aiModel.startChat({ history: initialHistoryForNewChat });
+                    addMessageToChatHistory('ai', initialHistoryForNewChat[1].parts[0].text);
+                }
+
+                const result = await chat.sendMessage(refinedPrompt);
+                let fullResponseText = result.response.text();
+                
+                // Handle AI readiness marker for chat responses
+                if (actionType === 'chat') {
+                    if (fullResponseText.includes(READY_FOR_CODE_MARKER)) {
+                        fullResponseText = fullResponseText.replace(READY_FOR_CODE_MARKER, '').trim();
+                        elements.generateCodeBtn.classList.add('highlight-generate-btn'); // Highlight the generate button
+                        showMessage("AI đã sẵn sàng tạo mã!", 4000);
+                    } else {
+                        elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Ensure it's not highlighted
+                    }
+                    addMessageToChatHistory('ai', fullResponseText);
+                    showMessage("AI đã phản hồi.");
+
+                } else { // actionType === 'generate'
+                    elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight after generation
+                    const separator = '---CODE---';
+                    let explanation = "AI không cung cấp giải thích.";
+                    let code = fullResponseText;
+
+                    if (fullResponseText.includes(separator)) {
+                        const parts = fullResponseText.split(separator);
+                        explanation = parts[0].trim();
+                        code = parts.slice(1).join(separator).trim();
+                    } else {
+                        if ((fullResponseText.includes('<html') || fullResponseText.includes('{') || fullResponseText.includes('function') || fullResponseText.includes('body {')) && fullResponseText.length > 100) {
+                            code = fullResponseText;
+                            explanation = "AI đã tạo mã nhưng không cung cấp giải thích riêng biệt. Vui lòng xem mã.";
+                        } else {
+                            explanation = fullResponseText;
+                            code = "// AI không tạo mã. Đây là phản hồi dạng văn bản.";
+                        }
+                    }
+                    
+                    elements.aiExplanationBox.innerHTML = marked.parse(explanation); 
+                    lastAiExplanationMarkdown = explanation;
+                    
+                    monacoEditor.setValue(code); // Update the main editor
+                    if (elements.fileNameInput.value.trim()) {
+                        monaco.editor.setModelLanguage(monacoEditor.getModel(), getLanguageFromFilename(elements.fileNameInput.value.trim()));
+                    }
+
+                    showMessage("AI đã cập nhật mã và cung cấp giải thích.");
+                    addMessageToChatHistory('ai', "Đã tạo mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
+                }
+
+            } catch (error) {
+                console.error("Error sending refined prompt:", error);
+                showMessage(`Lỗi khi gửi prompt: ${error.message}`, 5000);
+            } finally {
+                // Reset states
+                elements.sendRefinedChatBtn.disabled = false;
+                elements.sendRefinedCodeBtn.disabled = false;
+                elements.cancelRefinedPromptBtn.disabled = false;
+                elements.sendRefinedChatButtonText.textContent = 'Gửi Thảo luận';
+                elements.sendRefinedChatSpinner.classList.add('hidden');
+                elements.sendRefinedCodeButtonText.textContent = 'Tạo mã';
+                elements.sendRefinedCodeSpinner.classList.add('hidden');
+                if (monacoPromptEditor) monacoPromptEditor.updateOptions({ readOnly: false });
+                closePromptRefinementModal(); // Close modal after response
+            }
+        };
+
+        const clearChatHistory = () => {
+            chat = null; // Resets the chat history with the AI model
+            elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa. Bắt đầu trò chuyện mới.</p>';
+            elements.aiChatHistoryModalContent.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa.</p>'; // Clear modal content too
+            elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight on clear
+            showMessage("Đã xóa lịch sử trò chuyện.");
+        }
+
+
+        // --- Action Functions ---
+        const saveVersion = async () => {
+            // Prevent saving if in diff mode or refine mode
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi lưu phiên bản mới.", 5000);
+            }
+
+            if (!userId || !currentAppId || !monacoEditor) return showMessage('Vui lòng chọn ứng dụng và đảm bảo trình soạn thảo sẵn sàng.');
+            const filename = elements.fileNameInput.value.trim();
+            const content = monacoEditor.getValue();
+            const newVersionNotes = elements.newVersionNotesInput.value.trim();
+            
+            if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
+
+            try {
+                const versionsSnapshot = await getDocs(query(getCollections.versions(currentAppId), where('deleted', '!=', true)));
+                
+                // Get and save chat history
+                const chatHistoryToSave = chat ? (await chat.getHistory()) : [
+                    { role: "user", parts: [{ text: initialSystemPrompt }] },
+                    { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] }
+                ];
+
+                const newVersionRef = await addDoc(getCollections.versions(currentAppId), {
+                    versionIndex: versionsSnapshot.size + 1,
+                    notes: newVersionNotes || 'Không có ghi chú',
+                    timestamp: Date.now(),
+                    parentVersionId: currentVersionId,
+                    deleted: false,
+                    aiExplanation: lastAiExplanationMarkdown, // Save the AI explanation
+                    chatHistory: chatHistoryToSave // Save the chat history
+                });
+                await addDoc(getCollections.files(currentAppId, newVersionRef.id), { filename, content });
+                
+                showMessage('Phiên bản mới đã được lưu thành công!');
+                createSingleEditor(); // Reset editor to empty single view
+                elements.fileNameInput.value = '';
+                elements.newVersionNotesInput.value = '';
+                elements.aiChatInput.value = ''; 
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
+                lastAiExplanationMarkdown = ''; // Clear the stored AI explanation after saving
+                elements.viewDiffBtn.classList.add('hidden'); // Hide diff button after saving a new version (no parent yet)
+                removeAttachedFile(); // NEW: Clear attached file after saving a version
+                elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight on save
+                // Note: chat object is NOT cleared here, user can continue chat on the newly saved version.
+            } catch (error) {
+                console.error("Error saving version:", error);
+                showMessage('Lưu phiên bản thất bại.', 5000);
+            }
+        };
+
+        const copyCode = () => {
+            if (currentEditorType === 'diff') {
+                // If in diff mode, copy the modified (right) side
+                if (monacoDiffEditor) {
+                    const modifiedContent = monacoDiffEditor.getModel().modified.getValue();
+                    if (!modifiedContent) return showMessage("Không có mã để sao chép.", 3000);
+                    navigator.clipboard.writeText(modifiedContent).then(() => {
+                        showMessage('Mã đã được sao chép từ khung Modified!');
+                    }, () => {
+                        showMessage('Sao chép thất bại.', 3000);
+                    });
+                }
+            } else {
+                if (!monacoEditor) return;
+                const codeToCopy = monacoEditor.getValue();
+                if (!codeToCopy) return showMessage("Không có mã để sao chép.", 3000);
+                navigator.clipboard.writeText(codeToCopy).then(() => {
+                    showMessage('Mã đã được sao chép vào clipboard!');
+                }, () => {
+                    showMessage('Sao chép thất bại.', 3000);
+                });
+            }
+        };
+
+        const showPreview = () => {
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                 return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi xem trước mã.", 5000);
+            }
+            if (!monacoEditor) return;
+            const codeToPreview = monacoEditor.getValue();
+            if (!codeToPreview) return showMessage("Không có mã để xem trước.", 3000);
+            elements.previewFrame.srcdoc = codeToPreview;
+            elements.previewModal.classList.remove('hidden');
+            setPreviewMode('desktop'); 
+        };
+
+        // NEW: Functions for AI Chat History Modal
+        const showAiChatHistoryModal = () => {
+            elements.aiChatHistoryModalContent.innerHTML = elements.aiChatHistoryBox.innerHTML; // Copy content directly
+            elements.aiChatHistoryModal.classList.remove('hidden');
+            elements.aiChatHistoryModalContent.scrollTop = elements.aiChatHistoryModalContent.scrollHeight; // Scroll to bottom
+        };
+
+        const closeAiChatHistoryModal = () => {
+            elements.aiChatHistoryModal.classList.add('hidden');
+        };
+        
+        // --- Other functions (addNewApplication, modals, soft-delete, etc.) remain largely the same ---
+        const addNewApplication = async () => {
+            if (!userId) return showMessage('Vui lòng đăng nhập.');
+            const appName = elements.newAppNameInput.value.trim();
+            if (!appName) return showMessage('Tên ứng dụng không được để trống.');
+            try {
+                await addDoc(getCollections.applications(), { name: appName, createdAt: Date.now() });
+                showMessage(`Ứng dụng "${appName}" đã được thêm!`);
+                hideAddNewAppModal();
+            }
+            catch (error) { console.error("Error adding app:", error); showMessage('Thêm thất bại.', 5000); }
+        };
+        const showAddNewAppModal = () => { elements.newAppNameInput.value = ''; elements.addNewAppModal.classList.remove('hidden'); };
+        const hideAddNewAppModal = () => elements.addNewAppModal.classList.add('hidden');
+        const setPreviewMode = (mode) => {
+            elements.previewFrameContainer.classList.toggle('mobile-view', mode === 'mobile');
+            elements.previewModalContent.classList.toggle('desktop-mode-active', mode === 'desktop');
+            elements.mobileViewBtn.classList.toggle('bg-indigo-600', mode === 'mobile');
+            elements.mobileViewBtn.classList.toggle('text-white', mode === 'mobile');
+            elements.desktopViewBtn.classList.toggle('bg-indigo-600', mode === 'desktop');
+            elements.desktopViewBtn.classList.toggle('text-white', mode === 'desktop');
+        };
+        const closePreview = () => { elements.previewModal.classList.add('hidden'); elements.previewFrame.srcdoc = ''; };
+        const editSelectedVersionNotes = () => {
+            if (!currentVersionId) return showMessage('Chọn một phiên bản để sửa.', 3000);
+            elements.versionNotesInput.disabled = false;
+            elements.editVersionNotesBtn.classList.add('hidden');
+            elements.saveEditedVersionNotesBtn.classList.remove('hidden');
+            elements.versionNotesInput.focus();
+        };
+        const saveEditedVersionNotes = async () => {
+            if (!userId || !currentAppId || !currentVersionId) return showMessage('Không thể lưu.', 3000);
+            const newNotes = elements.versionNotesInput.value.trim();
+            if (!newNotes) return showMessage('Ghi chú không được trống.', 3000);
+            try {
+                await updateDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`), { notes: newNotes });
+                showMessage('Ghi chú đã được cập nhật!');
+                elements.versionNotesInput.disabled = true;
+                elements.editVersionNotesBtn.classList.remove('hidden');
+                elements.saveEditedVersionNotesBtn.classList.add('hidden');
+            } catch (error) { console.error("Error saving notes:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
+        };
+        let appToEditId = null;
+        const showEditAppModal = (appId, appName) => {
+            appToEditId = appId;
+            elements.editAppNameInput.value = appName;
+            elements.editAppModal.classList.remove('hidden');
+        };
+        const hideEditAppModal = () => elements.editAppModal.classList.add('hidden');
+        const saveEditedApplicationName = async () => {
+            if (!userId || !appToEditId) return;
+            const newName = elements.editAppNameInput.value.trim();
+            if (!newName) return showMessage('Tên không được trống.');
+            try {
+                await updateDoc(doc(db, `users/${userId}/applications/${appToEditId}`), { name: newName });
+                showMessage(`Đã cập nhật tên ứng dụng!`);
+                hideEditAppModal();
+                if (currentAppId === appToEditId) elements.currentAppNameSpan.textContent = newName;
+            } catch (error) { console.error("Error updating app name:", error); showMessage('Cập nhật thất bại.', 5000); }
+        };
+        const deleteApplicationCascade = async (appId) => {
+            if (!confirm('CẢNH BÁO: XÓA ỨNG DỤNG NÀY VĨNH VIỄN? Hành động này không thể hoàn tác.')) return;
+            try {
+                const versionsSnapshot = await getDocs(getCollections.versions(appId));
+                const deletePromises = [];
+                for (const versionDoc of versionsSnapshot.docs) {
+                    const filesSnapshot = await getDocs(getCollections.files(appId, versionDoc.id));
+                    filesSnapshot.forEach((fileDoc) => deletePromises.push(deleteDoc(fileDoc.ref)));
+                    deletePromises.push(deleteDoc(versionDoc.ref));
+                }
+                await Promise.all(deletePromises);
+                await deleteDoc(doc(db, `users/${userId}/applications/${appId}`));
+                showMessage('Ứng dụng đã được xóa vĩnh viễn!');
+                if (currentAppId === appId) selectApplication(null, "No App Selected");
+            } catch (error) { console.error("Error deleting app:", error); showMessage(`Lỗi khi xóa: ${error.message}`, 5000); }
+        };
+        const softDeleteVersion = async () => {
+            if (!currentVersionId) return showMessage('Vui lòng chọn một phiên bản.', 3000);
+            if (!confirm('Bạn có chắc muốn xóa phiên bản này?')) return;
+            try {
+                await updateDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`), { deleted: true, deletedAt: serverTimestamp() });
+                showMessage('Phiên bản đã được chuyển vào thùng rác!');
+                currentVersionId = null;
+                createSingleEditor(); // Reset editor to empty single view
+                elements.fileNameInput.value = ''; // Clear filename
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>'; // Reset explanation when current version is soft-deleted
+                clearChatHistory(); // Clear chat when current version is soft-deleted
+                elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
+                removeAttachedFile(); // NEW: Clear attached file when current version is soft-deleted
+                elements.generateCodeBtn.classList.remove('highlight-generate-btn'); // Remove highlight on soft delete
+                // NEW: Ensure refine mode is turned off
+                if (isRefineModeActive) {
+                    toggleRefineMode();
+                }
+                elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+            } catch (error) { console.error("Error soft deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
+        };
+        const showDeletedVersionsModal = () => {
+            if (!currentAppId) return showMessage('Chọn một ứng dụng.', 3000);
+            elements.deletedVersionsModal.classList.remove('hidden');
+            loadDeletedVersions();
+        };
+        const closeDeletedVersionsModal = () => elements.deletedVersionsModal.classList.add('hidden');
+        const loadDeletedVersions = () => {
+            if (!currentAppId) return;
+            const q = query(getCollections.versions(currentAppId), where('deleted', '==', true), orderBy('deletedAt', 'desc'));
+            onSnapshot(q, (snapshot) => {
+                elements.deletedVersionsList.innerHTML = snapshot.empty ? '<div class="text-gray-500 text-center py-4">Thùng rác trống.</div>' : '';
+                const fragment = document.createDocumentFragment();
+                snapshot.forEach(doc => {
+                    const version = doc.data();
+                    const versionItem = document.createElement('div');
+                    versionItem.className = 'bg-gray-100 p-3 rounded-lg shadow-sm flex justify-between items-center gap-2 mb-2';
+                    versionItem.innerHTML = `
+                        <div>
+                            <p class="font-medium">Phiên bản: ${version.versionIndex || 'N/A'}</p>
+                            <p class="text-sm text-gray-500">${version.notes || ''}</p>
+                            ${version.aiExplanation ? `<p class="text-xs text-gray-400 mt-1"><i>AI giải thích đã lưu</i></p>` : ''}
+                            ${version.chatHistory && version.chatHistory.length > 0 ? `<p class="text-xs text-gray-400 mt-1"><i>Lịch sử trò chuyện đã lưu</i></p>` : ''}
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="bg-indigo-600 text-white text-sm font-bold py-1 px-3 rounded-md restore-btn" data-version-id="${doc.id}">Khôi phục</button>
+                            <button class="bg-red-600 text-white text-sm font-bold py-1 px-3 rounded-md permanent-delete-btn" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
+                        </div>`;
+                    fragment.appendChild(versionItem);
+                });
+                elements.deletedVersionsList.appendChild(fragment);
+            });
+        };
+        const restoreVersion = async (appId, versionId) => {
+            if (!confirm('Khôi phục phiên bản này?')) return;
+            try {
+                await updateDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`), { deleted: false, deletedAt: null });
+                showMessage('Đã khôi phục!');
+            } catch (error) { console.error("Error restoring:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
+        };
+        const permanentDeleteVersion = async (appId, versionId) => {
+            if (!confirm('CẢNH BÁO: XÓA VĨNH VIỄN?')) return;
+            try {
+                const filesSnapshot = await getDocs(getCollections.files(appId, versionId));
+                await Promise.all(filesSnapshot.docs.map(fileDoc => deleteDoc(fileDoc.ref)));
+                await deleteDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
+                showMessage('Đã xóa vĩnh viễn!');
+            } catch (error) { console.error("Error permanently deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
+        };
+        
+        // --- Event Listeners ---
+        elements.loginBtn.addEventListener('click', () => handleAuth(false));
+        elements.registerBtn.addEventListener('click', () => handleAuth(true));
+        elements.logoutBtn.addEventListener('click', handleLogout);
+        elements.addNewAppBtn.addEventListener('click', showAddNewAppModal);
+        elements.confirmNewAppBtn.addEventListener('click', addNewApplication);
+        elements.cancelNewAppBtn.addEventListener('click', hideAddNewAppModal);
+        elements.saveVersionBtn.addEventListener('click', saveVersion);
+        elements.sendChatMessageBtn.addEventListener('click', sendChatMessage); // Now opens prompt refinement modal
+        elements.generateCodeBtn.addEventListener('click', generateCodeFromAI); // Now opens prompt refinement modal
+        elements.clearChatBtn.addEventListener('click', clearChatHistory);
+        elements.copyBtn.addEventListener('click', copyCode);
+        elements.previewBtn.addEventListener('click', showPreview);
+        elements.closePreviewBtn.addEventListener('click', closePreview);
+        elements.softDeleteVersionBtn.addEventListener('click', softDeleteVersion);
+        elements.showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
+        elements.closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
+        elements.mobileViewBtn.addEventListener('click', () => setPreviewMode('mobile'));
+        elements.desktopViewBtn.addEventListener('click', () => setPreviewMode('desktop'));
+        elements.editVersionNotesBtn.addEventListener('click', editSelectedVersionNotes);
+        elements.saveEditedVersionNotesBtn.addEventListener('click', saveEditedVersionNotes);
+        elements.confirmEditAppBtn.addEventListener('click', saveEditedApplicationName);
+        elements.cancelEditAppBtn.addEventListener('click', hideEditAppModal);
+        elements.toggleAiSuggestionsBtn.addEventListener('click', toggleAiSuggestions);
+        elements.viewDiffBtn.addEventListener('click', viewDiffWithParent);
+        elements.closeDiffModalBtn.addEventListener('click', () => {
+            elements.diffModal.classList.add('hidden');
+            const currentFileName = elements.fileNameInput.value;
+            const currentFileContent = monacoEditor ? monacoEditor.getValue() : '';
+            createSingleEditor(currentFileContent, currentFileName);
+            if (monacoEditor) monacoEditor.layout(); 
+        });
+
+        // NEW Refine mode listeners
+        elements.toggleRefineModeBtn.addEventListener('click', toggleRefineMode);
+        elements.sendRefineFeedbackBtn.addEventListener('click', sendRefineFeedback);
+        elements.cancelRefineFeedbackBtn.addEventListener('click', cancelRefineFeedback);
+
+        // NEW AI Chat History Modal listeners
+        elements.expandChatBtn.addEventListener('click', showAiChatHistoryModal);
+        elements.closeAiChatHistoryModalBtn.addEventListener('click', closeAiChatHistoryModal);
+
+        // NEW Prompt Refinement Modal listeners
+        elements.closePromptRefinementModalBtn.addEventListener('click', closePromptRefinementModal);
+        elements.cancelRefinedPromptBtn.addEventListener('click', closePromptRefinementModal);
+        // sendRefinedChatBtn and sendRefinedCodeBtn listeners are set dynamically in openPromptRefinementModal
+
+        // NEW File Attachment Listeners
+        elements.attachFileBtn.addEventListener('click', () => {
+            elements.fileAttachmentInput.click(); // Trigger the hidden file input
+        });
+
+        elements.fileAttachmentInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                removeAttachedFile(); // No file selected, clear if any was attached before
+                return;
+            }
+
+            // Validate file size
+            if (file.size > MAX_FILE_SIZE_KB * 1024) {
+                showMessage(`Tệp quá lớn (${(file.size / 1024).toFixed(0)}KB). Vui lòng chọn tệp nhỏ hơn ${MAX_FILE_SIZE_KB}KB.`, 5000);
+                removeAttachedFile();
+                return;
+            }
+
+            // Validate file type by MIME and extension
+            const isAllowedMime = ALLOWED_FILE_TYPES.includes(file.type);
+            const isAllowedExtension = file.name.match(/\.(html|css|js|txt|json|md)$/i);
+
+            if (!isAllowedMime && !isAllowedExtension) {
+                showMessage(`Loại tệp không được hỗ trợ. Vui lòng chọn .html, .css, .js, .txt, .json, hoặc .md.`, 5000);
+                removeAttachedFile();
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                attachedFileContent = e.target.result;
+                attachedFileName = file.name;
+                elements.attachedFileNameDisplay.textContent = attachedFileName;
+                elements.attachedFileInfo.classList.remove('hidden');
+                showMessage(`Đã đính kèm tệp "${attachedFileName}".`, 3000);
+            };
+            reader.onerror = () => {
+                showMessage(`Lỗi khi đọc tệp "${file.name}".`, 5000);
+                removeAttachedFile();
+            };
+            reader.readAsText(file);
+        });
+
+        elements.removeAttachedFileBtn.addEventListener('click', () => {
+            removeAttachedFile();
+            showMessage("Đã xóa tệp đính kèm.", 3000);
+        });
+
+
+        elements.searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            renderApplications(allApps.filter(app => app.name.toLowerCase().includes(searchTerm)));
+        });
+
+        // Event Delegation
+        elements.applicationsList.addEventListener('click', (e) => {
+            const appItem = e.target.closest('.list-item');
+            if (!appItem) return;
+            const appId = appItem.dataset.appId;
+            const appName = appItem.dataset.appName;
+            if (e.target.classList.contains('edit-app-btn')) { showEditAppModal(appId, appName); } 
+            else if (e.target.classList.contains('delete-app-btn')) { deleteApplicationCascade(appId); } 
+            else { selectApplication(appId, appName); }
+        });
+        elements.versionsList.addEventListener('click', (e) => {
+            const versionItem = e.target.closest('.list-item');
+            if (versionItem && currentAppId) selectVersion(currentAppId, versionItem.dataset.versionId);
+        });
+        elements.versionFilesList.addEventListener('click', (e) => {
+            const fileItem = e.target.closest('.list-item');
+            if (fileItem) loadFileIntoEditor(fileItem.dataset.filename);
+        });
+        elements.deletedVersionsList.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button || !currentAppId) return;
+            const versionId = button.dataset.versionId;
+            if (button.classList.contains('restore-btn')) restoreVersion(currentAppId, versionId);
+            else if (button.classList.contains('permanent-delete-btn')) permanentDeleteVersion(currentAppId, versionId);
+        });
+        elements.aiPromptSuggestionsContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (button) elements.aiChatInput.value = button.dataset.prompt; 
+        });
+
+    </script>
+</body>
+</html>
