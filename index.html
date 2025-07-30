@@ -1549,7 +1549,7 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
                     messageForAI += `\n\n[Tệp đính kèm: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
                 }
                 
-                messageForAI += `Tin nhắn của tôi: ${userMessage}`;
+                messageForAI += `Tin nhắn của tôi: Thảo luận không tạo code: ${userMessage}`;
 
                 // Open the prompt refinement modal
                 await openPromptRefinementModal(messageForAI, 'chat', userMessage);
